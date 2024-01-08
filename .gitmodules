@@ -4,3 +4,6 @@
 [submodule "Thirdparty/UDepth"]
 	path = Thirdparty/UDepth
 	url = git@github.com:uf-robopi/UDepth.git
+[submodule "Thirdparty/SfmLearner-Pytorch"]
+	path = Thirdparty/SfmLearner-Pytorch
+	url = git@github.com:ClementPinard/SfmLearner-Pytorch.git
