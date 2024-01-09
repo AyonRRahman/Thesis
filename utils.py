@@ -74,7 +74,7 @@ def convert_latlon_utm(dataset_folder: str):
     df['east'] = east
 
     depth = df['alt'].to_numpy()
-    
+
     # calculate the relative position w.r.t to the initial position 
     df['north_relative'] = np.array(north) - north[0]
     df['east_relative'] = np.array(east) - east[0]
@@ -82,7 +82,6 @@ def convert_latlon_utm(dataset_folder: str):
 
     #save to csv
     df.to_csv(os.path.join(dataset_folder,'navigation.csv'))
-
 
 
 if __name__=='__main__':
