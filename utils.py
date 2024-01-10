@@ -39,7 +39,7 @@ def show_image_sequence(image_folder: str):
 def Eiffel_convert_latlon_utm(dataset_folder: str):
     '''
     For Eiffel Tower dataset.
-    this function takes a folder containing navigation.txt file and converts the lat,lon
+    This function takes a folder containing navigation.txt file and converts the lat,lon
     system to utm projection system and saves the result as a csv file. 
 
     Args:
