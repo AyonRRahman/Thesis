@@ -9,3 +9,10 @@ cd data
 chmod +x datasetup.sh
 ./datasetup.sh
 ```
+
+## Download the Kitty Raw dataset
+```bash
+cd data
+./Kitty_raw_data_downloader.sh
+```
+
