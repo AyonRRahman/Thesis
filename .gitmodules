@@ -4,3 +4,6 @@
 [submodule "Thirdparty/SfmLearner-Pytorch"]
 	path = Thirdparty/SfmLearner-Pytorch
 	url = git@github.com:ClementPinard/SfmLearner-Pytorch.git
+[submodule "Thirdparty/SC-SfMLearner-Release"]
+	path = Thirdparty/SC-SfMLearner-Release
+	url = git@github.com:JiawangBian/SC-SfMLearner-Release.git
