@@ -11,6 +11,8 @@ chmod +x datasetup.sh
 ```
 
 ## Download the Kitty Raw dataset
+Official link to download the dataset:
+http://www.cvlibs.net/download.php?file=raw_data_downloader.zip
 ```bash
 cd data
 mkdir Kitty_raw
