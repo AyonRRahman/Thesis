@@ -1,6 +1,5 @@
 """
-The datasetup.py script enables you to download and preprocess 
-the Eiffel Tower Dataset 
+This script enables you to download the Eiffel Tower Dataset 
 """
 
 import argparse
