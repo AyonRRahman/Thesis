@@ -7,7 +7,7 @@ git clone --recurse-submodules git@github.com:AyonRRahman/Thesis.git
 ```bash
 cd data
 chmod +x datasetup_Eiffel_Tower.sh
-./datasetup.sh
+./datasetup_Eiffel_Tower.sh
 ```
 ## Download the Kitty Raw dataset
 Official link to download the dataset:
