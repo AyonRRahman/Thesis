@@ -30,4 +30,4 @@ def get_cam_txt(dir: str):
 
 
 if __name__=="__main__":
-    get_cam_txt(dir = '/home/ayon/thesis/code/Thesis/data/Eiffel-Tower/2015/undistorted/')
+    print('!!!!!!!')
