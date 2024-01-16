@@ -4,8 +4,7 @@ import argparse
 
 def main():
     parser = argparse.ArgumentParser(description='Run colmap image_undistorter on multiple datasets.')
-
-    
+        
     parser.add_argument('--dir', type=str, default='Eiffel-Tower', help='Directory path of the datasets (default: Eiffel_tower)')
     parser.add_argument('--out', type=str, default='Eiffel-Tower_undistorted', help='Directory to save the undistorted dataset')
     parser.add_argument('--delete_archive', action='store_true', help='Delete the archive after processing')
