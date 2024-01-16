@@ -6,7 +6,7 @@ git clone --recurse-submodules git@github.com:AyonRRahman/Thesis.git
 ## Download the Eiffel Tower dataset and use colmap to undistort images
 ```bash
 cd data
-chmod +x datasetup.sh
+chmod +x datasetup_Eiffel_Tower.sh
 ./datasetup.sh
 ```
 ## Download the Kitty Raw dataset
