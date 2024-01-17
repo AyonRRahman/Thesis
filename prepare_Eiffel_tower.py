@@ -9,10 +9,10 @@ from utils.data import get_cam_txt
 
 parser = argparse.ArgumentParser(description='Prepare Eiffel Tower Dataset for SC-SFMLearner')
 
-parser.add_argument('--dir', type=str, default='data/Eiffel-Tower_undistorted',\
-                    help='Directory path of the datasets (default: Eiffel-Tower_undistorted)' \
+parser.add_argument('--dir', type=str, default='data/Eiffel-Tower_undistorted',
+                    help='Directory path of the datasets (default: Eiffel-Tower_undistorted)' 
                     )
-parser.add_argument('--out', type=str, default='data/Eiffel-Tower', help='Directory to save the undistorted dataset')
+parser.add_argument('--out', type=str, default='data/Eiffel-Tower_ready', help='Directory to save the undistorted dataset')
 parser.add_argument('--delete_archive', action='store_true', help='Delete the archive after processing')
 
 def prepare_Eiffel_tower_dataset():
