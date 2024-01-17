@@ -1,8 +1,9 @@
 import sys
-# sys.path.append('data')
-# print(sys.path)
 import os
 import argparse
+
+import shutil
+import numpy as np
 
 from utils.data import get_cam_txt
 
@@ -34,8 +35,39 @@ def prepare_Eiffel_tower_dataset():
         os.mkdir(args.out)
     
     years = os.listdir(args.dir)
-    print(years)
     
+    for year in years:
+        target_folder = os.path.join(args.out, year)
+        
+        src_folder = os.path.join(args.dir, year, 'images')
+        print(f"copying {year} folder")
+        
+        #check the files already exists or not
+        if len(os.listdir(src_folder)) + 1 == len(os.listdir(target_folder)):
+            print("All files present. Skipping")
+            continue
+
+        #copy the images
+        shutil.copytree(src_folder, target_folder)
+        
+        assert len(os.listdir(src_folder))==len(os.listdir(target_folder))
+
+        #get the camera intrinsic
+        camera_intrinsics = get_cam_txt(os.path.join(args.dir, year)) #camera intrinsic matrix
+        #save the cam.txt file 
+        np.savetxt(os.path.join(target_folder, 'cam.txt'), camera_intrinsics)
+        
+
+    #making the val.txt and train.txt files
+    with open(os.path.join(args.out, 'train.txt'), 'w') as file:
+        file.write("2018\n")
+        file.write("2016\n")
+        file.write("2020")
+
+    with open(os.path.join(args.out, 'val.txt'), 'w') as file:
+        file.write("2015")
+    print('Done creating train.txt and val.txt files')
+
 if __name__=='__main__':
     prepare_Eiffel_tower_dataset()
 

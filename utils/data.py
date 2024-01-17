@@ -1,5 +1,7 @@
 import sys
 import os 
+
+#setting the path to the project root
 script_path = os.path.abspath(__file__)
 project_folder = os.path.abspath(os.path.join(os.path.dirname(script_path), '..'))
 sys.path[0] = project_folder
