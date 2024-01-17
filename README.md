@@ -13,7 +13,7 @@ chmod +x datasetup_Eiffel_Tower.sh
 Prepare the dataset for training in SC-SFMlearner:
 ```bash
 cd ..
-python /home/ayon/thesis/code/Thesis/prepare_Eiffel_tower.py
+python prepare_Eiffel_tower.py
 ```
 ## Download the Kitty Raw dataset
 Official link to download the dataset:
