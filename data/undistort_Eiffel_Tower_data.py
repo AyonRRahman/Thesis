@@ -28,7 +28,6 @@ def main():
         
         try:
             subprocess.run(command, shell=True, check=True)
-            # print(command)
             print(f"Command executed successfully for dataset {dataset}")
             
         except subprocess.CalledProcessError as e:
