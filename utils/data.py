@@ -1,6 +1,12 @@
-import os
+import sys
+import os 
+script_path = os.path.abspath(__file__)
+project_folder = os.path.abspath(os.path.join(os.path.dirname(script_path), '..'))
+sys.path[0] = project_folder
+
+# print(sys.path)
 import numpy as np
-from colmap_script import read_cameras_binary
+from utils.colmap_script import read_cameras_binary
 
 def get_cam_txt(dir: str) -> np.ndarray:
     '''
@@ -41,3 +47,11 @@ def get_cam_txt(dir: str) -> np.ndarray:
 
 if __name__=="__main__":
     print('!!!!!!!')
+    # Get the absolute path of the current script
+    # script_path = os.path.abspath(__file__)
+    # # Construct the path to the project folder based on the script's location
+    # Project_folder = os.path.abspath(os.path.join(os.path.dirname(script_path), '..', '..'))
+    
+    # # Add the 'Thesis' folder to sys.path
+    # # sys.path.append(thesis_folder)
+    # print(sys.path)
