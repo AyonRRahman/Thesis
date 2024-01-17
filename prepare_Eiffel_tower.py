@@ -66,7 +66,13 @@ def prepare_Eiffel_tower_dataset():
 
     with open(os.path.join(args.out, 'val.txt'), 'w') as file:
         file.write("2015")
+    
     print('Done creating train.txt and val.txt files')
+    
+    if args.delete_archive:
+        print(f'Deleting {args.dir}')
+        shutil.rmtree(args.dir)
+        print(f"Folder {args.dir} deleted successfully.")
 
 if __name__=='__main__':
     prepare_Eiffel_tower_dataset()
