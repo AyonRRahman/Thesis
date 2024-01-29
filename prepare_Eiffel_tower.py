@@ -39,13 +39,17 @@ def prepare_Eiffel_tower_dataset():
     for year in years:
         target_folder = os.path.join(args.out, year)
         
+        # if not os.path.exists(target_folder):
+        #     os.mkdir(target_folder)
+
         src_folder = os.path.join(args.dir, year, 'images')
         print(f"copying {year} folder")
-        
+        # print(len(os.listdir(src_folder)))
+        # print(len(os.listdir(target_folder)))
         #check the files already exists or not
-        if len(os.listdir(src_folder)) + 1 == len(os.listdir(target_folder)):
-            print("All files present. Skipping")
-            continue
+        # if len(os.listdir(src_folder)) + 1 == len(os.listdir(target_folder)):
+        #     print("All files present. Skipping")
+        #     continue
 
         #copy the images
         shutil.copytree(src_folder, target_folder)

@@ -18,7 +18,16 @@ which python
 echo '---------------'
 
 echo $HOSTNAME
+#Eiffel Tower
+# ./datasetup_Eiffel_Tower.sh
 
-./datasetup_Eiffel_Tower.sh
+echo $HOSTNAME
+
+# Kitty
+cd data
+mkdir Kitty_raw
+cp Kitty_raw_data_downloader.sh Kitty_raw
+cd Kitty_raw
+./Kitty_raw_data_downloader.sh
 
 echo $HOSTNAME
