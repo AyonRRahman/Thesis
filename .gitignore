@@ -4,3 +4,5 @@
 /data/Kitti/*
 /data/Eiffel-Tower_undistorted/*
 /data/Eiffel-Tower_ready/*
+/data/*.out
+/data/*.err
