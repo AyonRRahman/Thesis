@@ -8,3 +8,4 @@
 /data/*.err
 /data/Kitty_raw/*
 experiments.ipynb
+experiments.py
