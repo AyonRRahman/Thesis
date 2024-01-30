@@ -1,0 +1,34 @@
+import os
+import argparse
+from path import Path
+
+def main():
+    '''
+    Undistort Eiffel Tower data using opencv and prepare for training.
+    '''
+
+    parser = argparse.ArgumentParser(description='Undistort Eiffel Tower images using Opencv.')
+
+    parser.add_argument('--dir', type=str, default='Eiffel-Tower', help='Directory path of the datasets (default: Eiffel_tower)')
+    parser.add_argument('--out', type=str, default='Eiffel-Tower_ready_opencv', help='Directory to save the undistorted dataset')
+    
+    # Parse the command-line arguments
+    args = parser.parse_args()
+
+    root = Path(args.dir)
+    try:
+        assert os.path.isdir(root)
+    except:
+        raise ValueError(f"Folder {root} does not exist.")
+    
+    #make the output folder if it doesnot exist
+    output_path = Path(args.out)
+
+    if not os.path.exists(output_path):
+        os.mkdir(output_path)
+
+    years = os.listdir(root)
+
+
+if __name__=='__main__':
+    main()
