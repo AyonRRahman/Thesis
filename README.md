@@ -15,6 +15,12 @@ Prepare the dataset for training in SC-SFMlearner:
 cd ..
 python prepare_Eiffel_tower.py
 ```
+Or undistort using opencv to keep the image dimension same and prepare for training:
+```bash
+cd data
+python undistort_Eiffel_tower_using_opencv.py
+```
+
 ## Download the Kitty Raw dataset
 Official link to download the dataset:
 http://www.cvlibs.net/download.php?file=raw_data_downloader.zip
