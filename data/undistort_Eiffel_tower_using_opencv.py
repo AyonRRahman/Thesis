@@ -2,8 +2,8 @@ import os
 import argparse
 from path import Path
 import numpy as np
-import matplotlib.pyplot as plt
 import cv2
+from tqdm import tqdm
 
 def get_camera_params(camera_file: Path) -> (np.ndarray, np.ndarray):
     '''
@@ -79,12 +79,12 @@ def main():
         camera_calibration_mtx, dist = get_camera_params(camera_file)
         #saving the cam.txt file
         
-        for image in sorted(img_list):
+        for image in tqdm(sorted(img_list)):
             img = cv2.imread(images_folder/image)
             undistorted_img = cv2.undistort(img, camera_calibration_mtx, dist, None, camera_calibration_mtx)
             cv2.imwrite(output_year_folder/image, undistorted_img)
             
-            break
+            
         np.savetxt(output_year_folder/'cam.txt', camera_calibration_mtx)
         print(f'Done processing {year}')
     

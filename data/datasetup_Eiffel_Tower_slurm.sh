@@ -25,9 +25,6 @@ echo $HOSTNAME
 
 # Kitty
 cd data
-mkdir Kitty_raw
-cp Kitty_raw_data_downloader.sh Kitty_raw
-cd Kitty_raw
-./Kitty_raw_data_downloader.sh
+python undistort_Eiffel_tower_using_opencv.py
 
 echo $HOSTNAME
