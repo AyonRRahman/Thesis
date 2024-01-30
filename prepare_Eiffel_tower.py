@@ -66,10 +66,10 @@ def prepare_Eiffel_tower_dataset():
     with open(os.path.join(args.out, 'train.txt'), 'w') as file:
         file.write("2018\n")
         file.write("2016\n")
-        file.write("2020")
+        file.write("2020\n")
 
     with open(os.path.join(args.out, 'val.txt'), 'w') as file:
-        file.write("2015")
+        file.write("2015\n")
     
     print('Done creating train.txt and val.txt files')
     
