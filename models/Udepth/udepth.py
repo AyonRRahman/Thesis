@@ -45,6 +45,7 @@ class Decoder(nn.Module):
         x_d4 = self.up3(x_d3, x_block2)
         x_d5 = self.up4(x_d4, x_block1)
         x_d6 = self.up5(x_d5, x_block0)
+        
         return x_d6
 
 class Encoder(nn.Module):
@@ -83,6 +84,7 @@ class UDepth(nn.Module):
 
     def forward(self, x, **kwargs):
         unet_out = self.decoder(self.encoder(x))
+        print(unet_out.shape)
         bin_widths_normed, range_attention_maps = self.adaptive_bins_layer(unet_out)
 
         out = self.conv_out(range_attention_maps)
