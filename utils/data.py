@@ -123,12 +123,7 @@ def get_image_stats(dataset, batch_size:int = 10, stat_all:bool=False):
 if __name__=="__main__":
     print('!!!!!!!')
     dataset = ImageLoader()
-    get_image_stats(dataset, stat_all=True)
-    # Get the absolute path of the current script
-    # script_path = os.path.abspath(__file__)
-    # # Construct the path to the project folder based on the script's location
-    # Project_folder = os.path.abspath(os.path.join(os.path.dirname(script_path), '..', '..'))
+    get_image_stats(dataset, stat_all=False)
+    # mean: [0.11879350244998932, 0.11888326704502106, 0.11897549033164978]
+    # std:  [0.004583629313856363, 0.004587945993989706, 0.004591305274516344]
     
-    # # Add the 'Thesis' folder to sys.path
-    # # sys.path.append(thesis_folder)
-    # print(sys.path)
