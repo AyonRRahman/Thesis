@@ -1,3 +1,4 @@
+import torch
 import torch.utils.data as data
 import os
 from path import Path
@@ -47,3 +48,6 @@ class ImageLoader(data.Dataset):
 if __name__=='__main__':
     dataset = ImageLoader()
     print(dataset[0].shape)
+
+
+    
