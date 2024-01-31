@@ -54,8 +54,8 @@ def get_image_stats(dataset, batch_size:int = 10, stat_all:bool=False):
     get statistics of the dataset for normalizing.
     
     params:
-        dataset: a pytroch dataset class instance that returns images
-        batch_size
+        dataset (pytorch dataset class): a pytroch dataset class instance that returns images
+        batch_size (int): batch size for the dataloader
     '''
     
     loader = torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=True, num_workers=1)
