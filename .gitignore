@@ -4,8 +4,8 @@
 /data/Kitti/*
 /data/Eiffel-Tower_undistorted/*
 /data/Eiffel-Tower_ready/*
-/data/*.out
-/data/*.err
+*.out
+*.err
 /data/Kitty_raw/*
 experiments.ipynb
 experiments.py
@@ -13,3 +13,4 @@ experiments.py
 /data/Eiffel-Tower_ready_opencv/*
 /data/Eiffel-Tower_undistorted.zip
 *.pyc
+/checkpoints/*

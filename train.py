@@ -1,3 +1,6 @@
+from models.SFM.DispNetS import DispNetS
+
+
 import argparse
 import time
 import csv
@@ -10,10 +13,10 @@ import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
 
-import models
+
 
 import custom_transforms
-from utils import tensor2array, save_checkpoint
+from utils_SC import tensor2array, save_checkpoint
 from datasets.sequence_folders import SequenceFolder
 from datasets.pair_folders import PairFolder
 from loss_functions import compute_smooth_loss, compute_photo_and_geometry_loss, compute_errors
@@ -27,7 +30,7 @@ parser = argparse.ArgumentParser(description='Structure from Motion Learner trai
 parser.add_argument('data', metavar='DIR', help='path to dataset')
 parser.add_argument('--folder-type', type=str, choices=['sequence', 'pair'], default='sequence', help='the dataset dype to train')
 parser.add_argument('--sequence-length', type=int, metavar='N', help='sequence length for training', default=3)
-parser.add_argument('-j', '--workers', default=4, type=int, metavar='N', help='number of data loading workers')
+parser.add_argument('-j', '--workers', default=2, type=int, metavar='N', help='number of data loading workers')
 parser.add_argument('--epochs', default=200, type=int, metavar='N', help='number of total epochs to run')
 parser.add_argument('--epoch-size', default=0, type=int, metavar='N', help='manual epoch size (will match dataset size if not set)')
 parser.add_argument('-b', '--batch-size', default=4, type=int, metavar='N', help='mini-batch size')
@@ -61,6 +64,16 @@ parser.add_argument('--with-gt', action='store_true', help='use ground truth for
                     You need to store it in npy 2D arrays see data/kitti_raw_loader.py for an example')
 
 
+num_gpus = torch.cuda.device_count()
+
+# Loop through each GPU and print its properties
+for gpu_id in range(num_gpus):
+    gpu_props = torch.cuda.get_device_properties(gpu_id)
+    print(f"GPU {gpu_id}:")
+    print(f"  Name: {gpu_props.name}")
+    print(f"  Total Memory: {gpu_props.total_memory / 1024**3:.2f} GB")
+
+
 best_error = -1
 n_iter = 0
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
@@ -70,6 +83,7 @@ torch.autograd.set_detect_anomaly(True)
 def main():
     global best_error, n_iter, device
     args = parser.parse_args()
+    print(f"batch size {args.batch_size}")
 
     timestamp = datetime.datetime.now().strftime("%m-%d-%H:%M")
     save_path = Path(args.name)
@@ -141,24 +155,28 @@ def main():
     print('{} samples found in {} valid scenes'.format(len(val_set), len(val_set.scenes)))
     train_loader = torch.utils.data.DataLoader(
         train_set, batch_size=args.batch_size, shuffle=True,
-        num_workers=args.workers, pin_memory=True)
+        num_workers=args.workers, pin_memory=False)
     val_loader = torch.utils.data.DataLoader(
         val_set, batch_size=args.batch_size, shuffle=False,
-        num_workers=args.workers, pin_memory=True)
+        num_workers=args.workers, pin_memory=False)
 
     if args.epoch_size == 0:
         args.epoch_size = len(train_loader)
 
     # create model
     print("=> creating model")
-    disp_net = models.DispResNet(args.resnet_layers, args.with_pretrain).to(device)
-    pose_net = models.PoseResNet(18, args.with_pretrain).to(device)
+    # disp_net = models.DispResNet(args.resnet_layers, args.with_pretrain).to(device)
+    
+    #custom ayon
+    disp_net = DispNetS().to(device)
+    from models.SC_SFM.PoseResNet import PoseResNet
+    pose_net = PoseResNet(18, args.with_pretrain).to(device)
 
     # load parameters
-    if args.pretrained_disp:
-        print("=> using pre-trained weights for DispResNet")
-        weights = torch.load(args.pretrained_disp)
-        disp_net.load_state_dict(weights['state_dict'], strict=False)
+    # if args.pretrained_disp:
+    #     print("=> using pre-trained weights for DispResNet")
+    #     weights = torch.load(args.pretrained_disp)
+    #     disp_net.load_state_dict(weights['state_dict'], strict=False)
 
     if args.pretrained_pose:
         print("=> using pre-trained weights for PoseResNet")
@@ -291,10 +309,18 @@ def train(args, train_loader, disp_net, pose_net, optimizer, epoch_size, logger,
         logger.train_bar.update(i+1)
         if i % args.print_freq == 0:
             logger.train_writer.write('Train: Time {} Data {} Loss {}'.format(batch_time, data_time, losses))
-        if i >= epoch_size - 1:
+        if i >= (epoch_size - 1):
             break
 
         n_iter += 1
+        if i%10==0:
+            # Check how much GPU memory is currently being used
+            memory_used = torch.cuda.memory_allocated()
+            print(f"Current GPU memory used: {memory_used / 1024**3:.2f} GB")
+
+            # Check how much GPU memory is currently cached
+            memory_cached = torch.cuda.memory_cached()
+            print(f"Current GPU memory cached: {memory_cached / 1024**3:.2f} GB")
 
     return losses.avg[0]
 
