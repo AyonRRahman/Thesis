@@ -8,10 +8,15 @@ sys.path[0] = project_folder
 
 # print(sys.path)
 import numpy as np
-from utils.colmap_script import read_cameras_binary
-
 import torch
+import shutil
+import cv2
+from tqdm import tqdm
+from path import Path 
+
+from utils.colmap_script import read_cameras_binary
 from datasets.image_loader import ImageLoader
+
 
 def get_cam_txt(dir: str) -> np.ndarray:
     '''
@@ -120,10 +125,39 @@ def get_image_stats(dataset, batch_size:int = 10, stat_all:bool=False):
     
     return {'mean': [ch1_mean.item(), ch2_mean.item(), ch3_mean.item()], 'std':[ch1_std.item(), ch2_std.item(), ch3_std.item()]}
 
+def Downscale_image(root='./data/Eiffel-Tower_ready_opencv',out='./data/Eiffel-Tower_ready_Downscaled', scale=0.25):
+    if not os.path.isdir(root):
+        raise ValueError(f'{root} is not a valid directory')
+    root = Path(root)
+    out = Path(out)
+    out.makedirs_p()    
+    folders = os.listdir(root)
+    scaling_matrix = np.array([[scale, 0, 0],[0, scale, 0], [0 , 0, 1]])
+    print(f'scaling matrix for camera intrinsic:\n {scaling_matrix}')
+    for folder in folders:
+        #copy the val.txt and train.txt
+        if not os.path.isdir(root/folder):
+            shutil.copy2(root/folder, out)
+            continue
+        
+        (out/folder).makedirs_p()
+        #open the images in the folder and downscale them and save them in the destination
+        for images in tqdm(sorted(os.listdir(root/folder))):
+            #change the cam.txt
+            if images=='cam.txt':
+                K = np.loadtxt(root/folder/images)
+                new_K = scaling_matrix@K
+                np.savetxt(out/folder/'cam.txt', new_K)
+                continue
+            #other wise rescale image and save
+            img = cv2.imread(root/folder/images)
+            downscaled_img = cv2.resize(img, dsize=(int(scale*img.shape[1]), int(scale*img.shape[0])), interpolation=cv2.INTER_CUBIC)
+            cv2.imwrite(out/folder/images, downscaled_img) 
+            
+                
+
+
 if __name__=="__main__":
     print('!!!!!!!')
-    dataset = ImageLoader()
-    get_image_stats(dataset, stat_all=False)
-    # mean: [0.11879350244998932, 0.11888326704502106, 0.11897549033164978]
-    # std:  [0.004583629313856363, 0.004587945993989706, 0.004591305274516344]
+    Downscale_image()
     

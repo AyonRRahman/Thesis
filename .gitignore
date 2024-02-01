@@ -12,5 +12,6 @@ experiments.py
 /.ipynb_checkpoints
 /data/Eiffel-Tower_ready_opencv/*
 /data/Eiffel-Tower_undistorted.zip
+/data/Eiffel-Tower_ready_Downscaled/*
 *.pyc
 /checkpoints/*

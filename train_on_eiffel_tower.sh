@@ -14,13 +14,13 @@ echo $HOSTNAME
 nvidia-smi 
 echo $HOSTNAME
 
-python train.py /mundus/mrahman527/Thesis/data/Eiffel-Tower_ready_opencv/ \
+python train.py /mundus/mrahman527/Thesis/data/Eiffel-Tower_ready_Downscaled/ \
 --resnet-layers 50 \
 --num-scales 1 \
--b4 -s0.1 -c0.5 --sequence-length 3 \
+-b16 -s0.1 -c0.5 --sequence-length 3 \
 --with-ssim 1 \
 --with-mask 1 \
 --with-auto-mask 1 \
 --with-pretrain 1 \
 --log-output \
---name resnet50_pose_256
+--name downscaled_eiffel_tower

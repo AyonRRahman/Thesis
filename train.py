@@ -103,8 +103,15 @@ def main():
             output_writers.append(SummaryWriter(args.save_path/'valid'/str(i)))
 
     # Data loading code
-    normalize = custom_transforms.Normalize(mean=[0.45, 0.45, 0.45],
+    normalize = custom_transforms.Normalize(mean=[0.11879350244998932, 0.11888326704502106, 0.11897549033164978],
                                             std=[0.225, 0.225, 0.225])
+
+    # normalize = custom_transforms.Normalize(mean=[0.45, 0.45, 0.45],
+    #                                         std=[0.225, 0.225, 0.225])
+
+    # mean: [0.11879350244998932, 0.11888326704502106, 0.11897549033164978]
+    # std:  [0.004583629313856363, 0.004587945993989706, 0.004591305274516344]
+    
 
     train_transform = custom_transforms.Compose([
         custom_transforms.RandomHorizontalFlip(),
@@ -155,10 +162,10 @@ def main():
     print('{} samples found in {} valid scenes'.format(len(val_set), len(val_set.scenes)))
     train_loader = torch.utils.data.DataLoader(
         train_set, batch_size=args.batch_size, shuffle=True,
-        num_workers=args.workers, pin_memory=False)
+        num_workers=args.workers, pin_memory=True)
     val_loader = torch.utils.data.DataLoader(
         val_set, batch_size=args.batch_size, shuffle=False,
-        num_workers=args.workers, pin_memory=False)
+        num_workers=args.workers, pin_memory=True)
 
     if args.epoch_size == 0:
         args.epoch_size = len(train_loader)
