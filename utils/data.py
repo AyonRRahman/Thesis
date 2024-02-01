@@ -126,6 +126,16 @@ def get_image_stats(dataset, batch_size:int = 10, stat_all:bool=False):
     return {'mean': [ch1_mean.item(), ch2_mean.item(), ch3_mean.item()], 'std':[ch1_std.item(), ch2_std.item(), ch3_std.item()]}
 
 def Downscale_image(root='./data/Eiffel-Tower_ready_opencv',out='./data/Eiffel-Tower_ready_Downscaled', scale=0.25):
+    
+    '''
+    Downscale the images and transforms the cam.txt accordingly
+    in root folder by given scale and saves it in the out folder.
+
+    Params:
+        root(str):      root directory of the data
+        out(str):       output directory to save the data
+        scale(float):   scale to be used for downscaling
+    '''
     if not os.path.isdir(root):
         raise ValueError(f'{root} is not a valid directory')
     root = Path(root)

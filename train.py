@@ -103,11 +103,11 @@ def main():
             output_writers.append(SummaryWriter(args.save_path/'valid'/str(i)))
 
     # Data loading code
-    normalize = custom_transforms.Normalize(mean=[0.11879350244998932, 0.11888326704502106, 0.11897549033164978],
-                                            std=[0.225, 0.225, 0.225])
-
-    # normalize = custom_transforms.Normalize(mean=[0.45, 0.45, 0.45],
+    # normalize = custom_transforms.Normalize(mean=[0.11879350244998932, 0.11888326704502106, 0.11897549033164978],
     #                                         std=[0.225, 0.225, 0.225])
+
+    normalize = custom_transforms.Normalize(mean=[0.5, 0.5, 0.5],
+                                            std=[0.5, 0.5, 0.5])
 
     # mean: [0.11879350244998932, 0.11888326704502106, 0.11897549033164978]
     # std:  [0.004583629313856363, 0.004587945993989706, 0.004591305274516344]
@@ -320,7 +320,7 @@ def train(args, train_loader, disp_net, pose_net, optimizer, epoch_size, logger,
             break
 
         n_iter += 1
-        if i%10==0:
+        if i%100==0:
             # Check how much GPU memory is currently being used
             memory_used = torch.cuda.memory_allocated()
             print(f"Current GPU memory used: {memory_used / 1024**3:.2f} GB")
@@ -328,6 +328,7 @@ def train(args, train_loader, disp_net, pose_net, optimizer, epoch_size, logger,
             # Check how much GPU memory is currently cached
             memory_cached = torch.cuda.memory_cached()
             print(f"Current GPU memory cached: {memory_cached / 1024**3:.2f} GB")
+            print(f"Max GPU memory used: {torch.cuda.max_memory_allocated()/1024**3} GB")
 
     return losses.avg[0]
 
