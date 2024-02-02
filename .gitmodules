@@ -7,3 +7,6 @@
 [submodule "Thirdparty/SC-SfMLearner-Release"]
 	path = Thirdparty/SC-SfMLearner-Release
 	url = git@github.com:JiawangBian/SC-SfMLearner-Release.git
+[submodule "Thirdparty/depth_map_2_mesh_ray_tracer"]
+	path = Thirdparty/depth_map_2_mesh_ray_tracer
+	url = https://github.com/ferreram/depth_map_2_mesh_ray_tracer.git
