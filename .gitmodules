@@ -10,3 +10,6 @@
 [submodule "Thirdparty/depth_map_2_mesh_ray_tracer"]
 	path = Thirdparty/depth_map_2_mesh_ray_tracer
 	url = https://github.com/ferreram/depth_map_2_mesh_ray_tracer.git
+[submodule "Thirdparty/openMVS"]
+	path = Thirdparty/openMVS
+	url = git@github.com:cdcseacave/openMVS.git
