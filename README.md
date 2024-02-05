@@ -25,11 +25,21 @@ Using these repositories:
 [Maxime Ferrera's Script](https://github.com/ferreram/depth_map_2_mesh_ray_tracer/tree/main) and [OpenMVS](https://github.com/cdcseacave/openMVS/tree/master).<br>
 Build [Maxime Ferrera's Script](https://github.com/ferreram/depth_map_2_mesh_ray_tracer/tree/main) according to the mentioned method in the repository in the thirdparty folder. <br>
 Use docker file given in the [OpenMVS](https://github.com/cdcseacave/openMVS/tree/master) to build a docker container.
+
+convert the colmap model and start the docker for openMVS in the undistorted(colmap) folder
 ```bash
-cd Thirdparty/openMVS/docker/
-
+python create_txt_files_for_colmap_model.py
+../Thirdparty/openMVS/docker/QUICK_START.sh ./Eiffel-Tower_undistorted
 ```
-
+In the terminal of the docker container for each folder(2020, 2015, 2016, 2018) of data do this:
+```bash
+InterfaceCOLMAP -i ./2020 -o ./2020/scene.mvs --image-folder ./2020/images
+ReconstructMesh ./2020/scene.mvs -o ./2020/scene.ply
+```
+now from the native terminal:
+```bash
+sudo ./Create_depth_images.sh 
+```
 ## Download the Kitty Raw dataset
 Official link to download the dataset:
 http://www.cvlibs.net/download.php?file=raw_data_downloader.zip
