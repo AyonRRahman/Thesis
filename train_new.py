@@ -6,8 +6,7 @@ import time
 import csv
 import datetime
 
-
-
+from imageio import imread
 import numpy as np
 import torch
 import torch.backends.cudnn as cudnn
@@ -85,6 +84,11 @@ if torch.cuda.is_available():
 
 w1, w2, w3 = None, None, None
 
+
+def load_as_float(path):
+    return imread(path).astype(np.float32)
+
+
 def main():
     global best_error, n_iter, device
     global w1, w2, w3
@@ -103,12 +107,13 @@ def main():
     
     args.continue_training = False
 
-
     '''
     if the model save path exists and not to use pretrained, rename with timestamp
     elif the model save path exists and use pretrained, load the models from this directory
     else make the new directory to save models
     '''
+
+    #where models will get saved
     if os.path.exists(args.model_save_path) and not args.use_pretrained:
         args.model_save_path = args.model_save_path + timestamp
         args.model_save_path.makedirs_p()
@@ -122,7 +127,7 @@ def main():
     print(f'models will be saved in {args.model_save_path}')
 
     
-    #where models will get saved
+    
     
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
@@ -169,6 +174,7 @@ def main():
         sequence_length=args.sequence_length,
         image_extention = args.image_extention
     )
+    global val_set # to use it in the validation step to get the gt depth
 
     print('{} samples found in {} train scenes'.format(len(train_set), len(train_set.scenes)))
     print('{} samples found in {} valid scenes'.format(len(val_set), len(val_set.scenes)))
@@ -208,6 +214,12 @@ def main():
         weights = torch.load(args.pretrained_pose)
         pose_net.load_state_dict(weights['state_dict'], strict=False)
         
+        #load the saved weights if optimize_loss_weight is true
+        if args.optimize_loss_weight and ('w1' in weights):
+            w1 = weights['w1']
+            w2 = weights['w2']
+            w3 = weights['w3']
+    
     disp_net = torch.nn.DataParallel(disp_net)
     pose_net = torch.nn.DataParallel(pose_net)
 
@@ -278,19 +290,38 @@ def main():
         is_best = decisive_error < best_error
         best_error = min(best_error, decisive_error)
 
-#have to edit the save checkpoint function to save in my desired directory
-#args.model_save_path
+        #have to edit the save checkpoint function to save in my desired directory
+        #args.model_save_path
+        if not args.optimize_loss_weight:
+            save_checkpoint(
+                args.model_save_path, {
+                    'epoch': epoch + 1,
+                    'state_dict': disp_net.module.state_dict()
+                }, {
+                    'epoch': epoch + 1,
+                    'state_dict': pose_net.module.state_dict()
+                },
+                is_best)
+        else:
+            save_checkpoint(
+                args.model_save_path, {
+                    'epoch': epoch + 1,
+                    'state_dict': disp_net.module.state_dict(),
+                    'w1': w1.item(),
+                    'w2': w2.item(),
+                    'w3': w3.item()
+                }, {
+                    'epoch': epoch + 1,
+                    'state_dict': pose_net.module.state_dict(),
+                    'w1': w1.item(),
+                    'w2': w2.item(),
+                    'w3': w3.item()
+                },
+                is_best)
 
-        save_checkpoint(
-            args.save_path, {
-                'epoch': epoch + 1,
-                'state_dict': disp_net.module.state_dict()
-            }, {
-                'epoch': epoch + 1,
-                'state_dict': pose_net.module.state_dict()
-            },
-            is_best)
-
+        #print the weights
+        print(f"Epoch: {epoch}, w1: {w1.item()}, w2: {w2.item()}, w3: {w3.item()}")
+        
         with open(args.save_path/args.log_summary, 'a') as csvfile:
             writer = csv.writer(csvfile, delimiter='\t')
             writer.writerow([train_loss, decisive_error])
@@ -378,7 +409,9 @@ def train(args, train_loader, disp_net, pose_net, optimizer, epoch_size, logger,
 
 @torch.no_grad()
 def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, output_writers=[]):
+    #need to add the gt depth images in tensorboard 
     global device
+    global val_set
     batch_time = AverageMeter()
     losses = AverageMeter(i=4, precision=4)
     log_outputs = len(output_writers) > 0
@@ -405,6 +438,10 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
         if log_outputs and i < len(output_writers):
             if epoch == 0:
                 output_writers[i].add_image('val Input', tensor2array(tgt_img[0]), 0)
+                depth_file_name = Path(args.depth_directory)/(val_set.samples[i])['tgt'].split('/')[-1]
+                #try to use the tensor2array function later for depth
+                output_writers[i].add_image('gt depth', load_as_float(depth_file_name), 0)
+                
 
             output_writers[i].add_image('val Dispnet Output Normalized',
                                         tensor2array(1/tgt_depth[0][0], max_value=None, colormap='magma'),
