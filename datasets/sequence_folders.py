@@ -21,18 +21,20 @@ class SequenceFolder(data.Dataset):
         transform functions must take in a list a images and a numpy array (usually intrinsics matrix)
     """
 
-    def __init__(self, root, seed=None, train=True, sequence_length=3, transform=None, skip_frames=1, dataset='kitti'):
+    def __init__(self, root, seed=None, train=True, sequence_length=3, transform=None, skip_frames=1, image_extention='png'):
         np.random.seed(seed)
         random.seed(seed)
         self.root = Path(root)
         scene_list_path = self.root/'train.txt' if train else self.root/'val.txt'
         self.scenes = [self.root/folder[:-1] for folder in open(scene_list_path)]
+        # print(f"found these scenes: {self.scenes}")
         self.transform = transform
-        self.dataset = dataset
+        # self.dataset = dataset
         self.k = skip_frames
-        self.crawl_folders(sequence_length)
+        self.train = train
+        self.crawl_folders(sequence_length, image_extention)
 
-    def crawl_folders(self, sequence_length):
+    def crawl_folders(self, sequence_length, image_extention):
         # k skip frames
         sequence_set = []
         demi_length = (sequence_length-1)//2
@@ -40,16 +42,20 @@ class SequenceFolder(data.Dataset):
         shifts.pop(demi_length)
         for scene in self.scenes:
             intrinsics = np.genfromtxt(scene/'cam.txt').astype(np.float32).reshape((3, 3))
-            imgs = sorted(scene.files('*.png'))
+            imgs = sorted(scene.files(f'*.{image_extention}'))
 
             if len(imgs) < sequence_length:
                 continue
+            
             for i in range(demi_length * self.k, len(imgs)-demi_length * self.k):
                 sample = {'intrinsics': intrinsics, 'tgt': imgs[i], 'ref_imgs': []}
                 for j in shifts:
                     sample['ref_imgs'].append(imgs[i+j])
                 sequence_set.append(sample)
+        
+        
         random.shuffle(sequence_set)
+
         self.samples = sequence_set
 
     def __getitem__(self, index):

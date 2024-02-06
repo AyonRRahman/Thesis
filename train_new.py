@@ -1,11 +1,12 @@
-from models.SFM.DispNetS import DispNetS
-
 
 import argparse
+from path import Path
+import os
 import time
 import csv
 import datetime
-from path import Path
+
+
 
 import numpy as np
 import torch
@@ -13,14 +14,13 @@ import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
 
-
-
 import custom_transforms
 from utils_SC import tensor2array, save_checkpoint
 from datasets.sequence_folders import SequenceFolder
-from datasets.pair_folders import PairFolder
+
 from loss_functions import compute_smooth_loss, compute_photo_and_geometry_loss, compute_errors
 from logger import TermLogger, AverageMeter
+
 from tensorboardX import SummaryWriter
 
 
@@ -28,12 +28,12 @@ parser = argparse.ArgumentParser(description='Structure from Motion Learner trai
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 parser.add_argument('data', metavar='DIR', help='path to dataset')
-parser.add_argument('--folder-type', type=str, choices=['sequence', 'pair'], default='sequence', help='the dataset dype to train')
+# parser.add_argument('--folder-type', type=str, choices=['sequence'], default='sequence', help='the dataset dype to train')
 parser.add_argument('--sequence-length', type=int, metavar='N', help='sequence length for training', default=3)
 parser.add_argument('-j', '--workers', default=2, type=int, metavar='N', help='number of data loading workers')
 parser.add_argument('--epochs', default=200, type=int, metavar='N', help='number of total epochs to run')
 parser.add_argument('--epoch-size', default=0, type=int, metavar='N', help='manual epoch size (will match dataset size if not set)')
-parser.add_argument('-b', '--batch-size', default=4, type=int, metavar='N', help='mini-batch size')
+parser.add_argument('-b', '--batch-size', default=16, type=int, metavar='N', help='mini-batch size')
 parser.add_argument('--lr', '--learning-rate', default=1e-4, type=float, metavar='LR', help='initial learning rate')
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum for sgd, alpha parameter for adam')
 parser.add_argument('--beta', default=0.999, type=float, metavar='M', help='beta parameters for adam')
@@ -43,7 +43,7 @@ parser.add_argument('--seed', default=0, type=int, help='seed for random functio
 parser.add_argument('--log-summary', default='progress_log_summary.csv', metavar='PATH', help='csv where to save per-epoch train and valid stats')
 parser.add_argument('--log-full', default='progress_log_full.csv', metavar='PATH', help='csv where to save per-gradient descent train stats')
 parser.add_argument('--log-output', action='store_true', help='will log dispnet outputs at validation step')
-parser.add_argument('--resnet-layers',  type=int, default=18, choices=[18, 50], help='number of ResNet layers for depth estimation.')
+# parser.add_argument('--resnet-layers',  type=int, default=18, choices=[18, 50], help='number of ResNet layers for depth estimation.')
 parser.add_argument('--num-scales', '--number-of-scales', type=int, help='the number of scales', metavar='W', default=1)
 parser.add_argument('-p', '--photo-loss-weight', type=float, help='weight for photometric loss', metavar='W', default=1)
 parser.add_argument('-s', '--smooth-loss-weight', type=float, help='weight for disparity smoothness loss', metavar='W', default=0.1)
@@ -52,68 +52,94 @@ parser.add_argument('--with-ssim', type=int, default=1, help='with ssim or not')
 parser.add_argument('--with-mask', type=int, default=1, help='with the the mask for moving objects and occlusions or not')
 parser.add_argument('--with-auto-mask', type=int,  default=0, help='with the the mask for stationary points')
 parser.add_argument('--with-pretrain', type=int,  default=1, help='with or without imagenet pretrain for resnet')
-parser.add_argument('--dataset', type=str, choices=['kitti', 'nyu'], default='kitti', help='the dataset to train')
+# parser.add_argument('--dataset', type=str, choices=['kitti', 'nyu'], default='kitti', help='the dataset to train')
 parser.add_argument('--pretrained-disp', dest='pretrained_disp', default=None, metavar='PATH', help='path to pre-trained dispnet model')
 parser.add_argument('--pretrained-pose', dest='pretrained_pose', default=None, metavar='PATH', help='path to pre-trained Pose net model')
+parser.add_argument('--image_extention', type=str, default='png', help='image extention')
 parser.add_argument('--name', dest='name', type=str, required=True, help='name of the experiment, checkpoints are stored in checpoints/name')
 parser.add_argument('--padding-mode', type=str, choices=['zeros', 'border'], default='zeros',
                     help='padding mode for image warping : this is important for photometric differenciation when going outside target image.'
                          ' zeros will null gradients outside target image.'
                          ' border will only null gradients of the coordinate outside (x or y)')
-parser.add_argument('--with-gt', action='store_true', help='use ground truth for validation. \
-                    You need to store it in npy 2D arrays see data/kitti_raw_loader.py for an example')
 
 
-num_gpus = torch.cuda.device_count()
-
-# Loop through each GPU and print its properties
-for gpu_id in range(num_gpus):
-    gpu_props = torch.cuda.get_device_properties(gpu_id)
-    print(f"GPU {gpu_id}:")
-    print(f"  Name: {gpu_props.name}")
-    print(f"  Total Memory: {gpu_props.total_memory / 1024**3:.2f} GB")
-
+parser.add_argument('--optimize_loss_weight', action='store_true', help='optimize the weightages for different loss')
+parser.add_argument('--depth_directory', type=str, default='/mundus/mrahman527/Thesis/data/Eiffel-Tower_depth_images/', help='depth images directory')
+parser.add_argument('--use_pretrained', action='store_true', help='to start from the last saved models')
 
 best_error = -1
 n_iter = 0
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 torch.autograd.set_detect_anomaly(True)
 
+if torch.cuda.is_available():
+    #print gpu information
+    num_gpus = torch.cuda.device_count()
+
+    # Loop through each GPU and print its properties
+    for gpu_id in range(num_gpus):
+        gpu_props = torch.cuda.get_device_properties(gpu_id)
+        print(f"GPU {gpu_id}:")
+        print(f"  Name: {gpu_props.name}")
+        print(f"  Total Memory: {gpu_props.total_memory / 1024**3:.2f} GB")
+
+w1, w2, w3 = None, None, None
 
 def main():
     global best_error, n_iter, device
+    global w1, w2, w3
+
     args = parser.parse_args()
     w1, w2, w3 = args.photo_loss_weight, args.smooth_loss_weight, args.geometry_consistency_weight
-    print(f'weights: {w1, w2, w3}')
+    print(f'initial weights: {w1, w2, w3}')
     print(f"batch size {args.batch_size}")
 
     timestamp = datetime.datetime.now().strftime("%m-%d-%H:%M")
     save_path = Path(args.name)
     args.save_path = 'checkpoints'/save_path/timestamp
+    args.model_save_path = 'saved_models'/save_path
     print('=> will save everything to {}'.format(args.save_path))
     args.save_path.makedirs_p()
+    
+    args.continue_training = False
 
+
+    '''
+    if the model save path exists and not to use pretrained, rename with timestamp
+    elif the model save path exists and use pretrained, load the models from this directory
+    else make the new directory to save models
+    '''
+    if os.path.exists(args.model_save_path) and not args.use_pretrained:
+        args.model_save_path = args.model_save_path + timestamp
+        args.model_save_path.makedirs_p()
+
+    elif os.path.exists(args.model_save_path) and args.use_pretrained:
+        args.continue_training = True
+
+    else:
+        args.model_save_path.makedirs_p()
+
+    print(f'models will be saved in {args.model_save_path}')
+
+    
+    #where models will get saved
+    
     torch.manual_seed(args.seed)
     np.random.seed(args.seed)
     cudnn.deterministic = True
     cudnn.benchmark = True
 
+    #tensorbord writer
     training_writer = SummaryWriter(args.save_path)
     output_writers = []
+    #validation output image tensorboard writer
     if args.log_output:
         for i in range(3):
             output_writers.append(SummaryWriter(args.save_path/'valid'/str(i)))
 
     # Data loading code
-    # normalize = custom_transforms.Normalize(mean=[0.11879350244998932, 0.11888326704502106, 0.11897549033164978],
-    #                                         std=[0.225, 0.225, 0.225])
-
     normalize = custom_transforms.Normalize(mean=[0.5, 0.5, 0.5],
                                             std=[0.5, 0.5, 0.5])
-
-    # mean: [0.11879350244998932, 0.11888326704502106, 0.11897549033164978]
-    # std:  [0.004583629313856363, 0.004587945993989706, 0.004591305274516344]
-    
 
     train_transform = custom_transforms.Compose([
         custom_transforms.RandomHorizontalFlip(),
@@ -125,41 +151,25 @@ def main():
     valid_transform = custom_transforms.Compose([custom_transforms.ArrayToTensor(), normalize])
 
     print("=> fetching scenes in '{}'".format(args.data))
-    if args.folder_type == 'sequence':
-        train_set = SequenceFolder(
-            args.data,
-            transform=train_transform,
-            seed=args.seed,
-            train=True,
-            sequence_length=args.sequence_length,
-            dataset=args.dataset
-        )
-    else:
-        train_set = PairFolder(
-            args.data,
-            seed=args.seed,
-            train=True,
-            transform=train_transform
-        )
+    
+    train_set = SequenceFolder(
+        args.data,
+        transform=train_transform,
+        seed=args.seed,
+        train=True,
+        sequence_length=args.sequence_length,
+        image_extention = args.image_extention
+    )
+    #Validation set is the same type as training set to measure photometric loss from warping
+    val_set = SequenceFolder(
+        args.data,
+        transform=valid_transform,
+        seed=args.seed,
+        train=False,
+        sequence_length=args.sequence_length,
+        image_extention = args.image_extention
+    )
 
-
-    # if no Groundtruth is avalaible, Validation set is the same type as training set to measure photometric loss from warping
-    if args.with_gt:
-        from datasets.validation_folders import ValidationSet
-        val_set = ValidationSet(
-            args.data,
-            transform=valid_transform,
-            dataset=args.dataset
-        )
-    else:
-        val_set = SequenceFolder(
-            args.data,
-            transform=valid_transform,
-            seed=args.seed,
-            train=False,
-            sequence_length=args.sequence_length,
-            dataset=args.dataset
-        )
     print('{} samples found in {} train scenes'.format(len(train_set), len(train_set.scenes)))
     print('{} samples found in {} valid scenes'.format(len(val_set), len(val_set.scenes)))
     train_loader = torch.utils.data.DataLoader(
@@ -174,32 +184,57 @@ def main():
 
     # create model
     print("=> creating model")
-    # disp_net = models.DispResNet(args.resnet_layers, args.with_pretrain).to(device)
     
     #custom ayon
+    from models.SFM.DispNetS import DispNetS
     disp_net = DispNetS().to(device)
     from models.SC_SFM.PoseResNet import PoseResNet
     pose_net = PoseResNet(18, args.with_pretrain).to(device)
 
     # load parameters
-    # if args.pretrained_disp:
-    #     print("=> using pre-trained weights for DispResNet")
-    #     weights = torch.load(args.pretrained_disp)
-    #     disp_net.load_state_dict(weights['state_dict'], strict=False)
+    if args.continue_training:
+        #load the best performing models
+        print(f'Continuing Training from the models saved in {args.model_save_path}')
+        args.pretrained_pose = Path(args.model_save_path)/'exp_pose_model_best.pth.tar'
+        args.pretrained_disp = Path(args.model_save_path)/'dispnet_model_best.pth.tar'
+        
+    if args.pretrained_disp:
+        print(f"=> using pre-trained weights for DispNet from given path {args.pretrained_disp}")
+        weights = torch.load(args.pretrained_disp)
+        disp_net.load_state_dict(weights['state_dict'], strict=False)
 
     if args.pretrained_pose:
-        print("=> using pre-trained weights for PoseResNet")
+        print(f"=> using pre-trained weights for PoseResNet from given path {args.pretrained_pose}")
         weights = torch.load(args.pretrained_pose)
         pose_net.load_state_dict(weights['state_dict'], strict=False)
-
+        
     disp_net = torch.nn.DataParallel(disp_net)
     pose_net = torch.nn.DataParallel(pose_net)
 
     print('=> setting adam solver')
-    optim_params = [
-        {'params': disp_net.parameters(), 'lr': args.lr},
-        {'params': pose_net.parameters(), 'lr': args.lr}
-    ]
+    if not args.optimize_loss_weight:
+        optim_params = [
+            {'params': disp_net.parameters(), 'lr': args.lr},
+            {'params': pose_net.parameters(), 'lr': args.lr}
+        ]
+    else:
+        #converting the weights to tensor and then adding them to the params list
+        w1, w2, w3 = torch.tensor(w1), torch.tensor(w2), torch.tensor(w3)
+        w1.requires_grad = True
+        w2.requires_grad = True
+        w3.requires_grad = True
+        w1.to(device)
+        w2.to(device)
+        w3.to(device)
+
+        optim_params = [
+            {'params': disp_net.parameters(), 'lr': args.lr},
+            {'params': pose_net.parameters(), 'lr': args.lr},
+            {'params': w1, 'lr': args.lr},
+            {'params': w2, 'lr': args.lr},
+            {'params': w3, 'lr': args.lr}
+        ]
+
     optimizer = torch.optim.Adam(optim_params,
                                  betas=(args.momentum, args.beta),
                                  weight_decay=args.weight_decay)
@@ -225,10 +260,9 @@ def main():
 
         # evaluate on validation set
         logger.reset_valid_bar()
-        if args.with_gt:
-            errors, error_names = validate_with_gt(args, val_loader, disp_net, epoch, logger, output_writers)
-        else:
-            errors, error_names = validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, output_writers)
+        
+        errors, error_names = validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, output_writers)
+        
         error_string = ', '.join('{} : {:.3f}'.format(name, error) for name, error in zip(error_names, errors))
         logger.valid_writer.write(' * Avg {}'.format(error_string))
 
@@ -236,13 +270,17 @@ def main():
             training_writer.add_scalar(name, error, epoch)
 
         # Up to you to chose the most relevant error to measure your model's performance, careful some measures are to maximize (such as a1,a2,a3)
-        decisive_error = errors[1]
+        decisive_error = errors[1] + errors[0] + errors[2]
         if best_error < 0:
             best_error = decisive_error
 
         # remember lowest error and save checkpoint
         is_best = decisive_error < best_error
         best_error = min(best_error, decisive_error)
+
+#have to edit the save checkpoint function to save in my desired directory
+#args.model_save_path
+
         save_checkpoint(
             args.save_path, {
                 'epoch': epoch + 1,
@@ -258,13 +296,12 @@ def main():
             writer.writerow([train_loss, decisive_error])
     logger.epoch_bar.finish()
 
-
 def train(args, train_loader, disp_net, pose_net, optimizer, epoch_size, logger, train_writer):
     global n_iter, device
+    global w1, w2, w3
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter(precision=4)
-    w1, w2, w3 = args.photo_loss_weight, args.smooth_loss_weight, args.geometry_consistency_weight
     
     # switch to train mode
     disp_net.train()
@@ -292,7 +329,10 @@ def train(args, train_loader, disp_net, pose_net, optimizer, epoch_size, logger,
 
         loss_2 = compute_smooth_loss(tgt_depth, tgt_img, ref_depths, ref_imgs)
 
-        loss = w1*loss_1 + w2*loss_2 + w3*loss_3
+        if not args.optimize_loss_weight:
+            loss = w1*loss_1 + w2*loss_2 + w3*loss_3
+        else:
+            loss = (w1*loss_1 + w2*loss_2 + w3*loss_3)/(w1+w2+w3)
 
         if log_losses:
             train_writer.add_scalar('photometric_error', loss_1.item(), n_iter)
@@ -322,6 +362,7 @@ def train(args, train_loader, disp_net, pose_net, optimizer, epoch_size, logger,
             break
 
         n_iter += 1
+        
         if i%100==0:
             # Check how much GPU memory is currently being used
             memory_used = torch.cuda.memory_allocated()
@@ -396,79 +437,6 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
 
     logger.valid_bar.update(len(val_loader))
     return losses.avg, ['Total loss', 'Photo loss', 'Smooth loss', 'Consistency loss']
-
-
-@torch.no_grad()
-def validate_with_gt(args, val_loader, disp_net, epoch, logger, output_writers=[]):
-    global device
-    batch_time = AverageMeter()
-    error_names = ['abs_diff', 'abs_rel', 'sq_rel', 'a1', 'a2', 'a3']
-    errors = AverageMeter(i=len(error_names))
-    log_outputs = len(output_writers) > 0
-
-    # switch to evaluate mode
-    disp_net.eval()
-
-    end = time.time()
-    logger.valid_bar.update(0)
-    for i, (tgt_img, depth) in enumerate(val_loader):
-        tgt_img = tgt_img.to(device)
-        depth = depth.to(device)
-
-        # check gt
-        if depth.nelement() == 0:
-            continue
-
-        # compute output
-        output_disp = disp_net(tgt_img)
-        output_depth = 1/output_disp[:, 0]
-
-        if log_outputs and i < len(output_writers):
-            if epoch == 0:
-                output_writers[i].add_image('val Input', tensor2array(tgt_img[0]), 0)
-                depth_to_show = depth[0]
-                output_writers[i].add_image('val target Depth',
-                                            tensor2array(depth_to_show, max_value=10),
-                                            epoch)
-                depth_to_show[depth_to_show == 0] = 1000
-                disp_to_show = (1/depth_to_show).clamp(0, 10)
-                output_writers[i].add_image('val target Disparity Normalized',
-                                            tensor2array(disp_to_show, max_value=None, colormap='magma'),
-                                            epoch)
-
-            output_writers[i].add_image('val Dispnet Output Normalized',
-                                        tensor2array(output_disp[0], max_value=None, colormap='magma'),
-                                        epoch)
-            output_writers[i].add_image('val Depth Output',
-                                        tensor2array(output_depth[0], max_value=10),
-                                        epoch)
-
-        if depth.nelement() != output_depth.nelement():
-            b, h, w = depth.size()
-            output_depth = torch.nn.functional.interpolate(output_depth.unsqueeze(1), [h, w]).squeeze(1)
-
-        errors.update(compute_errors(depth, output_depth, args.dataset))
-
-        # measure elapsed time
-        batch_time.update(time.time() - end)
-        end = time.time()
-        logger.valid_bar.update(i+1)
-        if i % args.print_freq == 0:
-            logger.valid_writer.write('valid: Time {} Abs Error {:.4f} ({:.4f})'.format(batch_time, errors.val[0], errors.avg[0]))
-    logger.valid_bar.update(len(val_loader))
-    return errors.avg, error_names
-
-
-def compute_depth(disp_net, tgt_img, ref_imgs):
-    tgt_depth = [1/disp for disp in disp_net(tgt_img)]
-
-    ref_depths = []
-    for ref_img in ref_imgs:
-        ref_depth = [1/disp for disp in disp_net(ref_img)]
-        ref_depths.append(ref_depth)
-
-    return tgt_depth, ref_depths
-
 
 def compute_pose_with_inv(pose_net, tgt_img, ref_imgs):
     poses = []
