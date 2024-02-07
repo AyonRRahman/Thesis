@@ -23,7 +23,7 @@ from logger import TermLogger, AverageMeter
 from tensorboardX import SummaryWriter
 
 
-parser = argparse.ArgumentParser(description='Structure from Motion Learner training on KITTI and CityScapes Dataset',
+parser = argparse.ArgumentParser(description='Structure from Motion Learner training on Eiffel-Tower Dataset',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 parser.add_argument('data', metavar='DIR', help='path to dataset')
@@ -88,6 +88,8 @@ w1, w2, w3 = None, None, None
 def load_as_float(path):
     return imread(path).astype(np.float32)
 
+def sigmoid(x):
+    return torch.sigmoid(x)
 
 def main():
     global best_error, n_iter, device
@@ -166,6 +168,9 @@ def main():
         image_extention = args.image_extention
     )
     #Validation set is the same type as training set to measure photometric loss from warping
+
+    global val_set # to use it in the validation step to get the gt depth
+
     val_set = SequenceFolder(
         args.data,
         transform=valid_transform,
@@ -174,7 +179,6 @@ def main():
         sequence_length=args.sequence_length,
         image_extention = args.image_extention
     )
-    global val_set # to use it in the validation step to get the gt depth
 
     print('{} samples found in {} train scenes'.format(len(train_set), len(train_set.scenes)))
     print('{} samples found in {} valid scenes'.format(len(val_set), len(val_set.scenes)))
@@ -216,6 +220,7 @@ def main():
         
         #load the saved weights if optimize_loss_weight is true
         if args.optimize_loss_weight and ('w1' in weights):
+            print('=> loading weights')
             w1 = weights['w1']
             w2 = weights['w2']
             w3 = weights['w3']
@@ -231,10 +236,10 @@ def main():
         ]
     else:
         #converting the weights to tensor and then adding them to the params list
-        w1, w2, w3 = torch.tensor(w1), torch.tensor(w2), torch.tensor(w3)
-        w1.requires_grad = True
-        w2.requires_grad = True
-        w3.requires_grad = True
+        w1, w2, w3 = torch.tensor(w1, dtype=torch.float64, requires_grad=True), torch.tensor(w2,dtype=torch.float64, requires_grad=True), torch.tensor(w3,dtype=torch.float64, requires_grad=True)
+        # w1.requires_grad = True
+        # w2.requires_grad = True
+        # w3.requires_grad = True
         w1.to(device)
         w2.to(device)
         w3.to(device)
@@ -319,8 +324,9 @@ def main():
                 },
                 is_best)
 
-        #print the weights
-        print(f"Epoch: {epoch}, w1: {w1.item()}, w2: {w2.item()}, w3: {w3.item()}")
+        
+        if args.optimize_loss_weight:  #print the weights
+            print(f"Epoch: {epoch}, w1: {w1.item()}, w2: {w2.item()}, w3: {w3.item()}")
         
         with open(args.save_path/args.log_summary, 'a') as csvfile:
             writer = csv.writer(csvfile, delimiter='\t')
@@ -363,7 +369,7 @@ def train(args, train_loader, disp_net, pose_net, optimizer, epoch_size, logger,
         if not args.optimize_loss_weight:
             loss = w1*loss_1 + w2*loss_2 + w3*loss_3
         else:
-            loss = (w1*loss_1 + w2*loss_2 + w3*loss_3)/(w1+w2+w3)
+            loss = (sigmoid(w1)*loss_1 + sigmoid(w2)*loss_2 + sigmoid(w3)*loss_3)/(sigmoid(w1)+sigmoid(w2)+sigmoid(w3))
 
         if log_losses:
             train_writer.add_scalar('photometric_error', loss_1.item(), n_iter)
@@ -403,7 +409,7 @@ def train(args, train_loader, disp_net, pose_net, optimizer, epoch_size, logger,
             memory_cached = torch.cuda.memory_cached()
             print(f"Current GPU memory cached: {memory_cached / 1024**3:.2f} GB")
             print(f"Max GPU memory used: {torch.cuda.max_memory_allocated()/1024**3} GB")
-
+        
     return losses.avg[0]
 
 
@@ -438,9 +444,17 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
         if log_outputs and i < len(output_writers):
             if epoch == 0:
                 output_writers[i].add_image('val Input', tensor2array(tgt_img[0]), 0)
-                depth_file_name = Path(args.depth_directory)/(val_set.samples[i])['tgt'].split('/')[-1]
+                current_image = (val_set.samples[i])['tgt'].split('/')[-1]
+                depth_file_name = Path(args.depth_directory)/current_image[0:4]/'depth_images'/'depth_'+current_image
                 #try to use the tensor2array function later for depth
-                output_writers[i].add_image('gt depth', load_as_float(depth_file_name), 0)
+                print('------------')
+                print(f'current image name {(val_set.samples[i])['tgt'].split('/')[-1]}')
+                print(f"depth_file_name {depth_file_name}")
+                print('------------')
+                
+                depth_image = load_as_float(depth_file_name)
+                
+                output_writers[i].add_image('gt depth', tensor2array(torch.tensor(depth_image), max_value=None, colormap='magma'), 0)
                 
 
             output_writers[i].add_image('val Dispnet Output Normalized',
@@ -484,6 +498,15 @@ def compute_pose_with_inv(pose_net, tgt_img, ref_imgs):
 
     return poses, poses_inv
 
+def compute_depth(disp_net, tgt_img, ref_imgs):
+    tgt_depth = [1/disp for disp in disp_net(tgt_img)]
+
+    ref_depths = []
+    for ref_img in ref_imgs:
+        ref_depth = [1/disp for disp in disp_net(ref_img)]
+        ref_depths.append(ref_depth)
+
+    return tgt_depth, ref_depths
 
 if __name__ == '__main__':
     main()

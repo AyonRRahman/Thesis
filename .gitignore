@@ -16,3 +16,4 @@ experiments.py
 /data/Eiffel-Tower_depth_images/*
 *.pyc
 /checkpoints/*
+/saved_models/*
