@@ -287,7 +287,7 @@ def main():
             training_writer.add_scalar(name, error, epoch)
 
         # Up to you to chose the most relevant error to measure your model's performance, careful some measures are to maximize (such as a1,a2,a3)
-        decisive_error = errors[1] + errors[0] + errors[2]
+        decisive_error = errors[0]
         if best_error < 0:
             best_error = decisive_error
 
@@ -325,8 +325,9 @@ def main():
                 is_best)
 
         
-        if args.optimize_loss_weight:  #print the weights
-            print(f"Epoch: {epoch}, w1: {w1.item()}, w2: {w2.item()}, w3: {w3.item()}")
+        with torch.no_grad():
+            if args.optimize_loss_weight:  #print the weights
+                print(f"Epoch: {epoch}, w1: {(sigmoid(w1)/(sigmoid(w1)+sigmoid(w2)+sigmoid(w3))).item()}, w2: {(sigmoid(w2)/(sigmoid(w1)+sigmoid(w2)+sigmoid(w3))).item()}, w3: {(sigmoid(w3)/(sigmoid(w1)+sigmoid(w2)+sigmoid(w3))).item()}")
         
         with open(args.save_path/args.log_summary, 'a') as csvfile:
             writer = csv.writer(csvfile, delimiter='\t')
@@ -418,6 +419,8 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
     #need to add the gt depth images in tensorboard 
     global device
     global val_set
+    global w1, w2, w3
+
     batch_time = AverageMeter()
     losses = AverageMeter(i=4, precision=4)
     log_outputs = len(output_writers) > 0
@@ -476,7 +479,15 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
         loss_2 = loss_2.item()
         loss_3 = loss_3.item()
 
-        loss = loss_1
+        
+        #making sure to stop calculating the weights gradients.
+        with torch.no_grad():
+            if not args.optimize_loss_weight:
+                loss = w1*loss_1 + w2*loss_2 + w3*loss_3
+            else:
+                loss = (sigmoid(w1)*loss_1 + sigmoid(w2)*loss_2 + sigmoid(w3)*loss_3)/(sigmoid(w1)+sigmoid(w2)+sigmoid(w3))
+
+        # loss = loss_1
         losses.update([loss, loss_1, loss_2, loss_3])
 
         # measure elapsed time
