@@ -105,7 +105,12 @@ def main():
 
     timestamp = datetime.datetime.now().strftime("%m-%d-%H:%M")
     save_path = Path(args.name)
-    args.save_path = 'checkpoints'/save_path/timestamp
+    
+    if not args.use_pretrained:
+        args.save_path = 'checkpoints'/save_path/timestamp
+    else:
+        args.save_path = 'checkpoints'/save_path
+
     args.model_save_path = 'saved_models'/save_path
     print('=> will save everything to {}'.format(args.save_path))
     args.save_path.makedirs_p()
@@ -203,7 +208,7 @@ def main():
     disp_net = DispNetS().to(device)
     from models.SC_SFM.PoseResNet import PoseResNet
     pose_net = PoseResNet(18, args.with_pretrain).to(device)
-
+    epoch_skip = 0
     # load parameters
     if args.continue_training:
         #load the best performing models
@@ -223,6 +228,7 @@ def main():
         print(f"=> using pre-trained weights for DispNet from given path {args.pretrained_disp}")
         weights = torch.load(args.pretrained_disp)
         disp_net.load_state_dict(weights['state_dict'], strict=False)
+        epoch_skip = weights['epoch']-1
 
     if args.pretrained_pose:
         print(f"=> using pre-trained weights for PoseResNet from given path {args.pretrained_pose}")
@@ -267,20 +273,26 @@ def main():
                                  betas=(args.momentum, args.beta),
                                  weight_decay=args.weight_decay)
 
-    with open(args.save_path/args.log_summary, 'w') as csvfile:
-        writer = csv.writer(csvfile, delimiter='\t')
-        writer.writerow(['train_loss', 'validation_loss'])
+    if not os.path.exists(args.save_path/args.log_summary):
+        with open(args.save_path/args.log_summary, 'w') as csvfile:
+            writer = csv.writer(csvfile, delimiter='\t')
+            writer.writerow(['train_loss', 'validation_loss'])
 
-    with open(args.save_path/args.log_full, 'w') as csvfile:
-        writer = csv.writer(csvfile, delimiter='\t')
-        writer.writerow(['train_loss', 'photo_loss', 'smooth_loss', 'geometry_consistency_loss'])
+    if not os.path.exists(args.save_path/args.log_full):    
+        with open(args.save_path/args.log_full, 'w') as csvfile:
+            writer = csv.writer(csvfile, delimiter='\t')
+            writer.writerow(['train_loss', 'photo_loss', 'smooth_loss', 'geometry_consistency_loss'])
 
     logger = TermLogger(n_epochs=args.epochs, train_size=min(len(train_loader), args.epoch_size), valid_size=len(val_loader))
     logger.epoch_bar.start()
 
     for epoch in range(args.epochs):
         logger.epoch_bar.update(epoch)
-
+        
+        if args.continue_training and epoch_skip!=0:
+            if epoch<=epoch_skip:
+                n_iter+= len(train_loader)
+                continue
         # train for one epoch
         logger.reset_train_bar()
         train_loss = train(args, train_loader, disp_net, pose_net, optimizer, args.epoch_size, logger, training_writer)
@@ -298,7 +310,7 @@ def main():
             training_writer.add_scalar(name, error, epoch)
 
         # Up to you to chose the most relevant error to measure your model's performance, careful some measures are to maximize (such as a1,a2,a3)
-        decisive_error = errors[0]
+        decisive_error = errors[0] #0 = total weighted loss
         if best_error < 0:
             best_error = decisive_error
 
@@ -306,7 +318,6 @@ def main():
         is_best = decisive_error < best_error
         best_error = min(best_error, decisive_error)
 
-        #have to edit the save checkpoint function to save in my desired directory
         #args.model_save_path
         if not args.optimize_loss_weight:
             save_checkpoint(
