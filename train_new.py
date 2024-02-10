@@ -65,6 +65,8 @@ parser.add_argument('--padding-mode', type=str, choices=['zeros', 'border'], def
 parser.add_argument('--optimize_loss_weight', action='store_true', help='optimize the weightages for different loss')
 parser.add_argument('--depth_directory', type=str, default='/mundus/mrahman527/Thesis/data/Eiffel-Tower_depth_images/', help='depth images directory')
 parser.add_argument('--use_pretrained', action='store_true', help='to start from the last saved models')
+parser.add_argument('--use_RMI', action='store_true', help='use RMI input space instead of RGB.')
+
 
 best_error = -1
 n_iter = 0
@@ -89,7 +91,8 @@ def load_as_float(path):
     return imread(path).astype(np.float32)
 
 def sigmoid(x):
-    return torch.sigmoid(x)
+    #not sigmoid now. Exp to make it softmax
+    return torch.exp(x)
 
 def main():
     global best_error, n_iter, device
@@ -207,6 +210,14 @@ def main():
         print(f'Continuing Training from the models saved in {args.model_save_path}')
         args.pretrained_pose = Path(args.model_save_path)/'exp_pose_model_best.pth.tar'
         args.pretrained_disp = Path(args.model_save_path)/'dispnet_model_best.pth.tar'
+        if not os.path.exists(args.pretrained_disp):
+            print('disp net best saved model not found in the save directory. starting traiing from scratch')
+            args.pretrained_disp = None
+        
+        if not os.path.exists(args.pretrained_pose):
+            print('pose net best saved model not found in the save directory. starting traiing from scratch')
+            args.pretrained_pose = None
+        
         
     if args.pretrained_disp:
         print(f"=> using pre-trained weights for DispNet from given path {args.pretrained_disp}")

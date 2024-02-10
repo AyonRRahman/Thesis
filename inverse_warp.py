@@ -41,6 +41,7 @@ def pixel2cam(depth, intrinsics_inv):
     current_pixel_coords = pixel_coords[:, :, :h, :w].expand(
         b, 3, h, w).reshape(b, 3, -1)  # [B, 3, H*W]
     cam_coords = (intrinsics_inv @ current_pixel_coords).reshape(b, 3, h, w)
+    #returns 3d points in camera frame
     return cam_coords * depth.unsqueeze(1)
 
 
@@ -250,6 +251,7 @@ def inverse_warp2(img, depth, ref_depth, pose, intrinsics, padding_mode='zeros')
 
     batch_size, _, img_height, img_width = img.size()
 
+    #3d point of the target in camera frame
     cam_coords = pixel2cam(depth.squeeze(1), intrinsics.inverse())  # [B,3,H,W]
 
     pose_mat = pose_vec2mat(pose)  # [B,3,4]
