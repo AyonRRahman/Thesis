@@ -142,7 +142,7 @@ class SequenceFolderRMI(data.Dataset):
 
     def __getitem__(self, index):
         sample = self.samples[index]
-        print(sample['tgt'])
+        # print(sample['tgt'])
         tgt_img = self._load_as_float(sample['tgt'])
         ref_imgs = [self._load_as_float(ref_img) for ref_img in sample['ref_imgs']]
         if self.transform is not None:

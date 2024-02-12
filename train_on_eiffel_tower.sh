@@ -1,9 +1,9 @@
 #!/bin/bash
 
 #SBATCH --time=7-00:00:00
-#SBATCH --job-name=sing_RMI_equal_weight_b16
-#SBATCH --output=sing_RMI_equal_weight_b16.out
-#SBATCH --error=sing_RMI_equal_weight_b16.err
+#SBATCH --job-name=using_RMI_equal_weight_b16
+#SBATCH --output=using_RMI_equal_weight_b16.out
+#SBATCH --error=using_RMI_equal_weight_b16.err
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=raqibur.ayon@gmail.com
 #SBATCH --gres=gpu
@@ -24,5 +24,5 @@ python train_new.py /mundus/mrahman527/Thesis/data/Eiffel-Tower_ready_Downscaled
 --log-output \
 --use_pretrained \
 --epochs 400 --learning-rate 1e-4 \
---name using_RMI_equal_weight_b16
+--name using_RMI_equal_weight_b16 \
 --use_RMI
