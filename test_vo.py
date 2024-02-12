@@ -100,7 +100,11 @@ def main():
         tensor_img1 = tensor_img2
 
     poses = np.concatenate(poses, axis=0)
-    filename = output_dir/(args.sequence+".txt")
+    if not args.use_best:
+        filename = output_dir/(args.sequence+".txt")
+    else:
+        filename = output_dir/(args.sequence+"_best.txt")
+
     np.savetxt(filename, poses, delimiter=' ', fmt='%1.8e')
 
 
