@@ -110,7 +110,7 @@ def main():
         args.save_path = 'checkpoints'/save_path/timestamp
     else:
         args.save_path = 'checkpoints'/save_path
-
+    
     args.model_save_path = 'saved_models'/save_path
     print('=> will save everything to {}'.format(args.save_path))
     args.save_path.makedirs_p()
@@ -478,7 +478,7 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
                 print('------------')
                 
                 depth_image = load_as_float(depth_file_name)
-                
+                depth_image = depth_image/depth_image.max()
                 output_writers[i].add_image('gt depth', tensor2array(torch.tensor(depth_image), max_value=None, colormap='magma'), 0)
                 
 

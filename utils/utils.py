@@ -4,8 +4,48 @@ import numpy as np
 import utm
 from scipy.spatial.transform import Rotation as R
 
-
+from tqdm import tqdm
 import os 
+from path import Path
+
+
+def show_image_with_depth(img_folder, depth_folder, resize=True):
+    '''
+    function to show images and depth side by side
+    args:
+        img_folder(str): path to image folder
+        depth_folder(str): path to depth folder
+        resize(bool): should the function resize depth 
+    '''
+    image_path = Path(img_folder)
+    images = sorted(image_path.glob('*.png'))
+    depth_path = Path(depth_folder)
+    depths = sorted(depth_path.glob('*.png'))
+
+    for i,(img, depth) in tqdm(enumerate(zip(images, depths))):
+        # print(img)
+        # print(os.path.isfile(img))
+        img_loaded = cv2.imread(img)
+        # img_list.append(img_loaded)
+        # print(type(img_loaded))
+        # print(img_loaded.shape)
+        cv2.imshow('img',img_loaded)
+        depth_loaded = cv2.imread(depth)
+        # print(type(depth_loaded))
+        if resize:
+            depth_loaded = cv2.resize(depth_loaded, (depth_loaded.shape[1]//4,depth_loaded.shape[0]//4) )
+    
+        cv2.imshow('depth', depth_loaded/depth_loaded.max())
+        # print(img)
+        # cv2.waitKey(1)
+        key = cv2.waitKey(1) & 0xFF
+        if key == ord('q'):
+            cv2.destroyAllWindows()
+            break
+
+    cv2.destroyAllWindows()
+
+
 
 def show_image_sequence(image_folder: str):
     '''
@@ -147,17 +187,7 @@ def Eiffel_save_navigation_data(file_path: str) -> pd.DataFrame:
 
 
 if __name__=='__main__':
-    dataset_folder = '/home/ayon/thesis/data/Eiffel-Tower/'
-    for year in os.listdir(dataset_folder):
-        print(year)
-        file_path = os.path.join(dataset_folder,year+'/sfm/images.txt')
-        
-        
-        df = Eiffel_save_navigation_data(file_path)
+    image_path = Path('data/Eiffel-Tower_ready_Downscaled/2015')
+    depth_path = Path('data/Eiffel-Tower_depth_images/2015/depth_images')
 
-        if isinstance(df, pd.DataFrame):
-            df.to_csv(os.path.join(dataset_folder,year+'/sfm/position_and_orientation.csv'))
-        
-        else:
-            print('Function did not return Dataframe')
-    
+    show_image_with_depth(image_path, depth_path)
