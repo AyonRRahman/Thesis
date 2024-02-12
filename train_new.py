@@ -15,7 +15,7 @@ import torch.utils.data
 
 import custom_transforms
 from utils_SC import tensor2array, save_checkpoint
-from datasets.sequence_folders import SequenceFolder
+from datasets.sequence_folders import SequenceFolder, SequenceFolderRMI
 
 from loss_functions import compute_smooth_loss, compute_photo_and_geometry_loss, compute_errors
 from logger import TermLogger, AverageMeter
@@ -166,27 +166,52 @@ def main():
     valid_transform = custom_transforms.Compose([custom_transforms.ArrayToTensor(), normalize])
 
     print("=> fetching scenes in '{}'".format(args.data))
-    
-    train_set = SequenceFolder(
-        args.data,
-        transform=train_transform,
-        seed=args.seed,
-        train=True,
-        sequence_length=args.sequence_length,
-        image_extention = args.image_extention
-    )
-    #Validation set is the same type as training set to measure photometric loss from warping
-
     global val_set # to use it in the validation step to get the gt depth
 
-    val_set = SequenceFolder(
-        args.data,
-        transform=valid_transform,
-        seed=args.seed,
-        train=False,
-        sequence_length=args.sequence_length,
-        image_extention = args.image_extention
-    )
+    if not args.use_RMI:
+        print('not using RMI input space')
+        train_set = SequenceFolder(
+            args.data,
+            transform=train_transform,
+            seed=args.seed,
+            train=True,
+            sequence_length=args.sequence_length,
+            image_extention = args.image_extention
+        )
+        #Validation set is the same type as training set to measure photometric loss from warping
+
+        # global val_set # to use it in the validation step to get the gt depth
+
+        val_set = SequenceFolder(
+            args.data,
+            transform=valid_transform,
+            seed=args.seed,
+            train=False,
+            sequence_length=args.sequence_length,
+            image_extention = args.image_extention
+        )
+    else:
+        print('using RMI input space')
+        train_set = SequenceFolderRMI(
+            args.data,
+            transform=train_transform,
+            seed=args.seed,
+            train=True,
+            sequence_length=args.sequence_length,
+            image_extention = args.image_extention
+        )
+        #Validation set is the same type as training set to measure photometric loss from warping
+
+        
+        val_set = SequenceFolderRMI(
+            args.data,
+            transform=valid_transform,
+            seed=args.seed,
+            train=False,
+            sequence_length=args.sequence_length,
+            image_extention = args.image_extention
+        )
+
 
     print('{} samples found in {} train scenes'.format(len(train_set), len(train_set.scenes)))
     print('{} samples found in {} valid scenes'.format(len(val_set), len(val_set.scenes)))
