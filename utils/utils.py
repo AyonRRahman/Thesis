@@ -29,13 +29,38 @@ def show_image_with_depth(img_folder, depth_folder, resize=True):
         # img_list.append(img_loaded)
         # print(type(img_loaded))
         # print(img_loaded.shape)
-        cv2.imshow('img',img_loaded)
+        # cv2.imshow('img',img_loaded)
+        print(f'img {img_loaded.shape}')
+
         depth_loaded = cv2.imread(depth)
         # print(type(depth_loaded))
         if resize:
             depth_loaded = cv2.resize(depth_loaded, (depth_loaded.shape[1]//4,depth_loaded.shape[0]//4) )
-    
-        cv2.imshow('depth', depth_loaded/depth_loaded.max())
+
+        depth_norm = depth_loaded/depth_loaded.max()
+        
+        #check which size is bigger
+        diff = depth_norm.shape[0] - img_loaded.shape[0]
+        if diff>0: #depth is bigger
+            zeros_to_pad = np.zeros((diff, img_loaded.shape[1],3), dtype=np.uint8)
+            img_padded = np.vstack((img_loaded, zeros_to_pad))
+            # print(f'err {np.sum(img_loaded - img_padded[:270,:,:])}')
+            # cv2.imshow('img',img_padded)
+            # print(depth_norm.dtype)
+            # print(img_loaded.dtype)
+            # print(f'img_padded {img_padded.shape}')
+            img_to_show = np.hstack((img_padded/255.0, depth_norm))
+        elif diff<0:
+            zeros_to_pad = np.zeros((abs(diff), depth_norm.shape[1],3), dtype=np.uint8)
+            depth_padded = np.vstack((depth_norm, zeros_to_pad))
+            img_to_show = np.vstack((img_loaded/255.0, depth_padded))
+        
+        else:
+            img_to_show = np.vstack((img_loaded/255.0, depth_norm))
+
+        
+        # print(f'dep {depth_norm.shape}')
+        cv2.imshow('img and gt_depth', img_to_show)
         # print(img)
         # cv2.waitKey(1)
         key = cv2.waitKey(1) & 0xFF
@@ -124,7 +149,8 @@ def Eiffel_convert_latlon_utm(dataset_folder: str):
     df['depth_relative'] = depth - depth[0]
 
     #save to csv
-    df.to_csv(os.path.join(dataset_folder,'navigation.csv'))
+    return df
+    # df.to_csv(os.path.join(dataset_folder,'navigation.csv'))
 
 
 def Eiffel_save_navigation_data(file_path: str) -> pd.DataFrame:
