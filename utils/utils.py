@@ -40,6 +40,8 @@ def show_image_with_depth(img_folder, depth_folder, resize=True):
         depth_norm = depth_loaded/depth_loaded.max()
         
         #check which size is bigger
+        print(depth_norm.shape)
+        print(img_loaded.shape)
         diff = depth_norm.shape[0] - img_loaded.shape[0]
         if diff>0: #depth is bigger
             zeros_to_pad = np.zeros((diff, img_loaded.shape[1],3), dtype=np.uint8)
@@ -214,6 +216,6 @@ def Eiffel_save_navigation_data(file_path: str) -> pd.DataFrame:
 
 if __name__=='__main__':
     image_path = Path('data/Eiffel-Tower_ready_Downscaled/2015')
-    depth_path = Path('data/Eiffel-Tower_depth_images/2015/depth_images')
+    depth_path = Path('depth_evaluation/equal_wrights_b16_sl3_lr1e-4/2015')
 
     show_image_with_depth(image_path, depth_path)

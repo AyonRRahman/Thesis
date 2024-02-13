@@ -17,7 +17,7 @@ echo $HOSTNAME
 
 python train_new.py /mundus/mrahman527/Thesis/data/Eiffel-Tower_ready_Downscaled/ \
 --num-scales 1 \
--b16 -s0.3 -c0.7 --sequence-length 3 \
+-b16 -s0.5 -c1 --sequence-length 3 \
 --with-ssim 1 \
 --with-mask 1 \
 --with-auto-mask 1 \

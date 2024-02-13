@@ -61,8 +61,7 @@ def load_tensor_image(filename, args):
         img = imread(filename).astype(np.float32)
     
     h, w, _ = img.shape
-    if (not args.no_resize) and (h != args.img_height or w != args.img_width):
-        img = imresize(img, (args.img_height, args.img_width)).astype(np.float32)
+    
     img = np.transpose(img, (2, 0, 1))
     tensor_img = ((torch.from_numpy(img).unsqueeze(0)/255-0.5)/0.5).to(device)
     return tensor_img
@@ -110,22 +109,29 @@ def main():
 
         tensor_img = load_tensor_image(test_files[iter], args)
 
+        # print(test_files[iter])
         # print(f"img shape {tensor_img.shape}")
 
         disp = disp_net(tensor_img)[0,0]
         depth = 1/disp
+        # print(depth.shape)
         # plt.imshow(depth.detach().cpu())
         # plt.savefig('a.png')
         depth = depth.detach().cpu().numpy().astype(np.float64)
+        # print(depth.shape)
+        
         # print(type(depth))
         # print(f'dep {depth.max()}')
-        img_gray = cv2.cvtColor((depth*255).astype(np.uint8),cv2.COLOR_GRAY2BGR)
+        img_gray = cv2.cvtColor((depth*255.0).astype(np.uint8),cv2.COLOR_GRAY2BGR)
+        # print(img_gray.shape)
+        
         # print(f'gray {np.array(img_gray).max()}')
         # cv2.cvtColor(img, cv2.COLOR_BGR2GRAY) 
         
         filename = output_dir/test_files[iter].split('/')[-1]
 
         cv2.imwrite(filename, img_gray)
+        print(iter)
         # print(f'disp shape {disp.shape}')
         # print(f'depth shape {depth.shape}')
         # print(filename)
