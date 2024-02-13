@@ -30,7 +30,7 @@ def show_image_with_depth(img_folder, depth_folder, resize=True):
         # print(type(img_loaded))
         # print(img_loaded.shape)
         # cv2.imshow('img',img_loaded)
-        print(f'img {img_loaded.shape}')
+        # print(f'img {img_loaded.shape}')
 
         depth_loaded = cv2.imread(depth)
         # print(type(depth_loaded))
