@@ -145,6 +145,11 @@ def Downscale_image(root='./data/Eiffel-Tower_ready_opencv',out='./data/Eiffel-T
     scaling_matrix = np.array([[scale, 0, 0],[0, scale, 0], [0 , 0, 1]])
     print(f'scaling matrix for camera intrinsic:\n {scaling_matrix}')
     for folder in folders:
+        # print(folder)
+        if not folder=='2015':
+            print(folder)
+            continue
+        
         #copy the val.txt and train.txt
         if not os.path.isdir(root/folder):
             shutil.copy2(root/folder, out)

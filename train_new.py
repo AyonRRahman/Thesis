@@ -66,10 +66,11 @@ parser.add_argument('--optimize_loss_weight', action='store_true', help='optimiz
 parser.add_argument('--depth_directory', type=str, default='/mundus/mrahman527/Thesis/data/Eiffel-Tower_depth_images/', help='depth images directory')
 parser.add_argument('--use_pretrained', action='store_true', help='to start from the last saved models')
 parser.add_argument('--use_RMI', action='store_true', help='use RMI input space instead of RGB.')
-
+parser.add_argument('--train_until_converge', action='store_true', help='train till converging without stopping')
 
 best_error = -1
 n_iter = 0
+n_iter_without_best = 0
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 torch.autograd.set_detect_anomaly(True)
 
@@ -95,7 +96,7 @@ def sigmoid(x):
     return torch.exp(x)
 
 def main():
-    global best_error, n_iter, device
+    global best_error, n_iter, device, n_iter_without_best
     global w1, w2, w3
 
     args = parser.parse_args()
@@ -105,7 +106,9 @@ def main():
 
     timestamp = datetime.datetime.now().strftime("%m-%d-%H:%M")
     save_path = Path(args.name)
-    
+    if args.train_until_converge:
+        args.epochs=4000
+        print('setting max epochs to 4000 as train untill converge')
     if not args.use_pretrained:
         args.save_path = 'checkpoints'/save_path/timestamp
     else:
@@ -341,6 +344,13 @@ def main():
 
         # remember lowest error and save checkpoint
         is_best = decisive_error < best_error
+        if is_best:
+            n_iter_without_best=0
+        else:
+            n_iter_without_best+=1
+            if n_iter_without_best==20:
+                print(f"model is not converging for last 20 epoch. stoping at {epoch}")
+                break
         best_error = min(best_error, decisive_error)
 
         #args.model_save_path
