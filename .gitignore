@@ -18,3 +18,5 @@ experiments.py
 /checkpoints/*
 /saved_models/*
 /pose_evaluation/*
+/depth_evaluation/*
+
