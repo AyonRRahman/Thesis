@@ -13,6 +13,8 @@ import shutil
 import cv2
 from tqdm import tqdm
 from path import Path 
+from PIL import Image, ImageOps
+from imageio import imread
 
 from utils.colmap_script import read_cameras_binary
 from datasets.image_loader import ImageLoader
@@ -169,10 +171,123 @@ def Downscale_image(root='./data/Eiffel-Tower_ready_opencv',out='./data/Eiffel-T
             downscaled_img = cv2.resize(img, dsize=(int(scale*img.shape[1]), int(scale*img.shape[0])), interpolation=cv2.INTER_CUBIC)
             cv2.imwrite(out/folder/images, downscaled_img) 
             
-                
+def center_crop(img, dim):
+    """Returns center cropped image
+    source:
+    https://medium.com/curious-manava/center-crop-and-scaling-in-opencv-using-python-279c1bb77c74
+
+    Args:
+    img: image to be center cropped
+    dim: dimensions (width, height) to be cropped from center
+    """
+    width, height = img.shape[1], img.shape[0]
+
+	# process crop width and height for max available dimension
+
+    crop_width = dim[0] if dim[0]<img.shape[1] else img.shape[1]
+    crop_height = dim[1] if dim[1]<img.shape[0] else img.shape[0] 
+    mid_x, mid_y = int(width/2), int(height/2)
+    cw2, ch2 = int(crop_width/2), int(crop_height/2) 
+    crop_img = img[mid_y-ch2:mid_y+ch2, mid_x-cw2:mid_x+cw2]
+    return crop_img
 
 
+def crop_and_downscale_colmap_undistorted_image(root='data/Eiffel-Tower_undistorted', out='data/Eiffel-Tower_ready_Downscaled_colmap/', scale=0.25):
+    '''
+    Downscale after center cropping of the the images and 
+    transforms the cam.txt accordingly in root folder by 
+    given scale and saves it in the out folder.
+
+    Params:
+        root(str):      root directory of the data
+        out(str):       output directory to save the data
+        scale(float):   scale to be used for downscaling <1
+    '''
+    
+    
+    root = Path(root)
+    folders = os.listdir(root)
+    required_shape = (64*29, 64*16)  #(wd, ht)
+    #for all the folders found with 
+    # # print(img.shape[0]//64)
+    # # print(img.shape[1]//64)
+    output_folder = Path(out)
+    output_folder.makedirs_p()
+    depth_output_directory = Path('./data/scaled_and_cropped_depth/')
+    depth_output_directory.makedirs_p()
+
+    #saving train.txt and val.txt
+    with open(output_folder/'train.txt', 'w') as file:
+        file.write("2018\n")
+        file.write("2016\n")
+        file.write("2020\n")
+
+    with open(output_folder/'val.txt', 'w') as file:
+        file.write("2015\n")
+
+    for folder in folders:
+        img_directory = root/folder/'images'
+        imgs = img_directory.glob('*.png')
+        print(f"found {len(imgs)} images in {folder} folder")
+        img = cv2.imread(imgs[0])
+        
+        print(f"shape of the images {img.shape}")
+
+        ht_to_crop = img.shape[0]-required_shape[1]
+        wd_to_crop = img.shape[1]-required_shape[0]
+
+        
+        # print(cropped_image.shape)
+        cam_intrinsic = get_cam_txt(root/folder)
+        
+        # modify cam_intrinsic for center cropping
+        cam_intrinsic[0,2] = cam_intrinsic[0,2]-wd_to_crop/2 
+        cam_intrinsic[1,2] = cam_intrinsic[1,2]-ht_to_crop/2
+        
+        # print(cam_intrinsic)
+        # modify the cam intrinsic for scaling
+        scaling_matrix = np.array([[scale, 0, 0],[0, scale, 0], [0 , 0, 1]])
+        CroppedAndScaled_cam_intrinsic = scaling_matrix@cam_intrinsic
+        #make the folder
+        (output_folder/folder).makedirs_p()
+        #save the cam.txt file
+        np.savetxt(output_folder/folder/'cam.txt', CroppedAndScaled_cam_intrinsic)
+        for image in tqdm(sorted(imgs)):
+            #load image
+            img = cv2.imread(image)
+            cropped_image = center_crop(img, required_shape) 
+            scaled_img = cv2.resize(cropped_image, dsize=(int(scale*cropped_image.shape[1]), int(scale*cropped_image.shape[0])), interpolation=cv2.INTER_NEAREST)
+            cv2.imwrite(output_folder/folder/image.split('/')[-1], scaled_img) 
+            
+        print(f"output image shape {scaled_img.shape}")
+        depth_images = (root/folder/'depth_images').glob('*.png')
+        depth_folder = depth_output_directory/folder
+        depth_folder.makedirs_p()
+        
+        for depths in tqdm(sorted(depth_images)):  
+            img = cv2.imread(depths).astype(np.uint8)
+            cropped_image = center_crop(img, required_shape) 
+            scaled_img = cv2.resize(cropped_image, dsize=(int(scale*cropped_image.shape[1]), int(scale*cropped_image.shape[0])), interpolation=cv2.INTER_NEAREST)
+            
+            cv2.imwrite(depth_folder/depths.split('/')[-1], scaled_img) 
+            
+
+        print(f"output depth shape {scaled_img.shape}")
+        
+            
+
+        
+        
+
+
+        
+
+
+
+        
 if __name__=="__main__":
+    
     print('!!!!!!!')
+    crop_and_downscale_colmap_undistorted_image()
     # Downscale_image()
     
