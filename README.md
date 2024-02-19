@@ -12,8 +12,7 @@ chmod +x datasetup_Eiffel_Tower.sh
 ```
 Prepare the dataset for training in SC-SFMlearner:
 ```bash
-cd ..
-python prepare_Eiffel_tower.py
+run the crop_and_downscale_colmap_undistorted_image() function in utils.data.py to prepare the the Eiffel-Tower dataset for training.
 ```
 Or undistort using opencv to keep the image dimension same and prepare for training:
 ```bash
