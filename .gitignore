@@ -20,3 +20,5 @@ experiments.py
 /pose_evaluation/*
 /depth_evaluation/*
 /depth_prediction.gif
+/data/Eiffel-Tower_ready_Downscaled_colmap/*
+/data/scaled_and_cropped_depth/*
