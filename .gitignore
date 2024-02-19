@@ -19,4 +19,4 @@ experiments.py
 /saved_models/*
 /pose_evaluation/*
 /depth_evaluation/*
-
+depth_prediction.gif

@@ -348,8 +348,8 @@ def main():
             n_iter_without_best=0
         else:
             n_iter_without_best+=1
-            if n_iter_without_best==20:
-                print(f"model is not converging for last 20 epoch. stoping at {epoch}")
+            if n_iter_without_best==80:
+                print(f"model is not converging for last 80 epoch. stoping at {epoch}")
                 break
         best_error = min(best_error, decisive_error)
 

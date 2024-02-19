@@ -7,9 +7,10 @@ from scipy.spatial.transform import Rotation as R
 from tqdm import tqdm
 import os 
 from path import Path
+import imageio
+from PIL import Image
 
-
-def show_image_with_depth(img_folder, depth_folder, resize=True):
+def show_image_with_depth(img_folder, depth_folder, resize=True, save_video=False):
     '''
     function to show images and depth side by side
     args:
@@ -21,11 +22,14 @@ def show_image_with_depth(img_folder, depth_folder, resize=True):
     images = sorted(image_path.glob('*.png'))
     depth_path = Path(depth_folder)
     depths = sorted(depth_path.glob('*.png'))
-
+    frames = []
+    print(f'{len(images)}, {len(depths)}')
     for i,(img, depth) in tqdm(enumerate(zip(images, depths))):
         # print(img)
         # print(os.path.isfile(img))
         img_loaded = cv2.imread(img)
+        if save_video:
+            img_loaded = cv2.cvtColor(img_loaded, cv2.COLOR_BGR2RGB)
         # img_list.append(img_loaded)
         # print(type(img_loaded))
         # print(img_loaded.shape)
@@ -40,8 +44,8 @@ def show_image_with_depth(img_folder, depth_folder, resize=True):
         depth_norm = depth_loaded/depth_loaded.max()
         
         #check which size is bigger
-        print(depth_norm.shape)
-        print(img_loaded.shape)
+        # print(depth_norm.shape)
+        # print(img_loaded.shape)
         diff = depth_norm.shape[0] - img_loaded.shape[0]
         if diff>0: #depth is bigger
             zeros_to_pad = np.zeros((diff, img_loaded.shape[1],3), dtype=np.uint8)
@@ -55,22 +59,37 @@ def show_image_with_depth(img_folder, depth_folder, resize=True):
         elif diff<0:
             zeros_to_pad = np.zeros((abs(diff), depth_norm.shape[1],3), dtype=np.uint8)
             depth_padded = np.vstack((depth_norm, zeros_to_pad))
-            img_to_show = np.vstack((img_loaded/255.0, depth_padded))
+            img_to_show = np.hstack((img_loaded/255.0, depth_padded))
+            # print(f"img show shape{img_to_show.shape}")
+            
+            
         
         else:
-            img_to_show = np.vstack((img_loaded/255.0, depth_norm))
+            img_to_show = np.hstack((img_loaded/255.0, depth_norm))
+            # print(f"img show shape{img_to_show.shape}, depth_norm {depth_norm.shape}, img {img_loaded.shape}")
 
         
+        if save_video:
+            # print(img_to_show.shape)
+            frames.append(Image.fromarray((img_to_show * 255).astype(np.uint8)))
         # print(f'dep {depth_norm.shape}')
-        cv2.imshow('img and gt_depth', img_to_show)
+        if not save_video:
+            cv2.imshow('img and gt_depth', img_to_show)
         # print(img)
         # cv2.waitKey(1)
         key = cv2.waitKey(1) & 0xFF
         if key == ord('q'):
             cv2.destroyAllWindows()
             break
-
+    
     cv2.destroyAllWindows()
+
+    if save_video:
+        print("Saving GIF file")
+        with imageio.get_writer("depth_prediction.gif", mode="I") as writer:
+            for idx, frame in enumerate(frames):
+                print("Adding frame to GIF file: ", idx + 1)
+                writer.append_data(frame)
 
 
 
@@ -216,6 +235,6 @@ def Eiffel_save_navigation_data(file_path: str) -> pd.DataFrame:
 
 if __name__=='__main__':
     image_path = Path('data/Eiffel-Tower_ready_Downscaled/2015')
-    depth_path = Path('depth_evaluation/equal_wrights_b16_sl3_lr1e-4/2015')
-
-    show_image_with_depth(image_path, depth_path)
+    depth_path = Path('data/Eiffel-Tower_depth_images/2015/depth_images')
+    # image_path = Path('depth_evaluation/equal_wrights_b16_sl3_lr1e-4/2015')
+    show_image_with_depth(image_path, depth_path, resize=True, save_video=False)

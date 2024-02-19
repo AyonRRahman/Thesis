@@ -7,8 +7,8 @@
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=raqibur.ayon@gmail.com
 #SBATCH --gres=gpu
-#SBATCH --mem-per-gpu=24G
-#SBATCH --partition=besteffort
+#SBATCH --mem-per-gpu=16G
+
 
 
 echo $HOSTNAME
@@ -24,5 +24,6 @@ python train_new.py /mundus/mrahman527/Thesis/data/Eiffel-Tower_ready_Downscaled
 --with-pretrain 1 \
 --log-output \
 --use_pretrained \
---epochs 400 --learning-rate 1e-4 \
+--epochs 400 --learning-rate 1e-5 \
 --name train_untill_converge \
+--train_until_converge

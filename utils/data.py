@@ -174,5 +174,5 @@ def Downscale_image(root='./data/Eiffel-Tower_ready_opencv',out='./data/Eiffel-T
 
 if __name__=="__main__":
     print('!!!!!!!')
-    Downscale_image()
+    # Downscale_image()
     
