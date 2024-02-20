@@ -13,8 +13,11 @@ def mean_squared_error_depth(predicted: np.ndarray, gt: np.ndarray)->float:
     '''
     assert predicted.shape == gt.shape 
     #normalize both
-    predicted = predicted/predicted.max()
     gt = gt/gt.max()
+    mask = np.array(gt, dtype=bool).astype(int)
+
+    predicted = (predicted*mask) #element wise multiply the mask
+    predicted = predicted/predicted.max()
 
     mse = ((gt-predicted)**2).mean()
     return float(mse)
