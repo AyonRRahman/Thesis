@@ -22,3 +22,4 @@ experiments.py
 /depth_prediction.gif
 /data/Eiffel-Tower_ready_Downscaled_colmap/*
 /data/scaled_and_cropped_depth/*
+/models/CPD/CPD-R.pth
