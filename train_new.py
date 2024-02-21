@@ -5,7 +5,8 @@ import os
 import time
 import csv
 import datetime
-
+from tqdm import tqdm
+import cv2
 from imageio import imread
 import numpy as np
 import torch
@@ -14,6 +15,7 @@ import torch.optim
 import torch.utils.data
 
 import custom_transforms
+from utils.eval import mean_squared_error_depth
 from utils_SC import tensor2array, save_checkpoint
 from datasets.sequence_folders import SequenceFolder, SequenceFolderRMI
 
@@ -225,6 +227,10 @@ def main():
         val_set, batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
+    depth_val_loader = torch.utils.data.DataLoader(
+        val_set, batch_size=1, shuffle=False,
+        num_workers=1, pin_memory=True)
+
     if args.epoch_size == 0:
         args.epoch_size = len(train_loader)
 
@@ -330,7 +336,12 @@ def main():
         logger.reset_valid_bar()
         
         errors, error_names = validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, output_writers)
+        #mse on depth with gt
+        print(f'validating depth {epoch}')
+        mse = validate_depth(depth_val_loader, disp_net)
         
+        training_writer.add_scalar('mse depth', mse, epoch)
+
         error_string = ', '.join('{} : {:.3f}'.format(name, error) for name, error in zip(error_names, errors))
         logger.valid_writer.write(' * Avg {}'.format(error_string))
 
@@ -338,7 +349,7 @@ def main():
             training_writer.add_scalar(name, error, epoch)
 
         # Up to you to chose the most relevant error to measure your model's performance, careful some measures are to maximize (such as a1,a2,a3)
-        decisive_error = errors[0] #0 = total weighted loss
+        decisive_error = errors[1] #0 = total weighted loss, 1 =photo loss
         if best_error < 0:
             best_error = decisive_error
 
@@ -554,8 +565,41 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
         if i % args.print_freq == 0:
             logger.valid_writer.write('valid: Time {} Loss {}'.format(batch_time, losses))
 
+        
     logger.valid_bar.update(len(val_loader))
     return losses.avg, ['Total loss', 'Photo loss', 'Smooth loss', 'Consistency loss']
+
+
+@torch.no_grad()
+def load_gt_depth(current_image):
+    year = current_image[0:4]
+    depth_dir = Path('data/scaled_and_cropped_depth/')/year
+    depth_img = depth_dir/('depth_'+current_image)
+    depth_gt = cv2.imread(depth_img).astype(np.uint8)
+    depth_gt_gray = cv2.cvtColor(depth_gt, cv2.COLOR_BGR2GRAY)
+    return depth_gt_gray
+
+@torch.no_grad()
+def validate_depth(depth_val_loader, disp_net):
+    global device
+    global val_set
+    
+    # switch to evaluate mode
+    disp_net.eval()
+    total_mse_loss = 0
+    # print(len(depth_val_loader))
+    for i, (tgt_img, ref_imgs, intrinsics, intrinsics_inv) in tqdm(enumerate(depth_val_loader)):
+        tgt_img = tgt_img.to(device)
+        # compute output
+        tgt_depth = 1 / disp_net(tgt_img)
+        predicted_depth = tgt_depth.squeeze().detach().cpu().numpy()
+        current_image = (val_set.samples[i])['tgt'].split('/')[-1]
+        gt_depth = load_gt_depth(current_image)
+
+        total_mse_loss += mean_squared_error_depth(predicted=predicted_depth, gt=gt_depth)
+        
+    return total_mse_loss/len(depth_val_loader)
+
 
 def compute_pose_with_inv(pose_net, tgt_img, ref_imgs):
     poses = []
