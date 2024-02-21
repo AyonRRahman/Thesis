@@ -233,6 +233,55 @@ def Eiffel_save_navigation_data(file_path: str) -> pd.DataFrame:
         return None
 
 
+def export_trajectory(file, output_dir = 'data/Eiffel-Tower/2015/'):
+    '''
+    Takes sfm/images.txt file and exports the gt pose in a gt_traj.txt file in the output_dir folder.
+
+    exports the 4x4 pose matrix as flattend
+    Every row of the file contains the first 3 rows of a 
+    4x4 homogeneous pose matrix (SE(3) matrix) flattened 
+    into one line, with each value separated by a space. 
+    (Kitty format)
+    
+    For example, this pose matrix: 
+    a b c d
+    e f g h
+    i j k l
+    0 0 0 1
+    >>>>>>> 
+    a b c d e f g h i j k l
+    '''
+    assert os.path.exists(file)
+    gt_df = Eiffel_save_navigation_data(file).sort_index()
+
+    poses = np.zeros((1,12))
+    # print(poses)
+
+    for index, row in gt_df.iterrows():
+        x = row['TX']
+        y = row['TY']
+        z = row['TZ']
+
+        trans = np.array((x,y,z)).reshape(3,1)
+        
+        rx = row['Rx']
+        ry = row['Ry']
+        rz = row['Rz']
+        
+        rot_z = R.from_euler('z', rz, degrees=True).as_matrix()
+        rot_x = R.from_euler('x', rx, degrees=True).as_matrix()
+        rot_y = R.from_euler('y', ry, degrees=True).as_matrix()
+        rot_mat = rot_z@rot_y@rot_x
+
+        inverse_pose_translation = -(rot_mat.T)@trans
+        inverse_pose_rot = rot_mat.T
+        
+        inverse_pose = np.concatenate((inverse_pose_rot, inverse_pose_translation), axis=1)
+        poses = np.concatenate((poses, np.expand_dims(inverse_pose.flatten(), axis=0)), axis=0)
+        
+    np.savetxt(os.path.join(output_dir,'gt_traj.txt'),poses[1:],fmt="%f", delimiter=' ')
+
+
 if __name__=='__main__':
     image_path = Path('data/Eiffel-Tower_ready_Downscaled/2015')
     depth_path = Path('data/Eiffel-Tower_depth_images/2015/depth_images')
