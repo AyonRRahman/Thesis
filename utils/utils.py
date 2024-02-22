@@ -3,6 +3,7 @@ import pandas as pd
 import numpy as np
 import utm
 from scipy.spatial.transform import Rotation as R
+from scipy.spatial.transform import Rotation as Rot
 
 from tqdm import tqdm
 import os 
@@ -280,6 +281,75 @@ def export_trajectory(file, output_dir = 'data/Eiffel-Tower/2015/'):
         poses = np.concatenate((poses, np.expand_dims(inverse_pose.flatten(), axis=0)), axis=0)
         
     np.savetxt(os.path.join(output_dir,'gt_traj.txt'),poses[1:],fmt="%f", delimiter=' ')
+
+
+
+def compute_Twc_from_Tcw(tx,ty,tz,qx,qy,qz,qw):
+    tcw = np.array([[tx,ty,tz]]).reshape(3,1)
+    qcw = np.array([[qx,qy,qz,qw]]).reshape(4,)
+    rot_cw = Rot.from_quat(qcw)
+    Rcw = rot_cw.as_matrix()
+    Rwc = Rcw.T
+    twc = -Rwc.dot(tcw)
+    rot_wc = Rot.from_matrix(Rwc)
+    qwc = rot_wc.as_quat()
+    return twc, qwc
+
+def extract_cam_pose_from_line(line):
+    line_els = line.split(" ")
+    img_id = int(line_els[0])
+    qw = float(line_els[1])
+    qx = float(line_els[2])
+    qy = float(line_els[3])
+    qz = float(line_els[4])
+    tx = float(line_els[5])
+    ty = float(line_els[6])
+    tz = float(line_els[7])
+    cam_id = int(line_els[8])
+    # print(line_els[9].split(".")[0].split("_")[-1])
+    img_name = line_els[9].split(".")[0].split("_")[-1]
+    twc, qwc = compute_Twc_from_Tcw(tx,ty,tz,qx,qy,qz,qw)
+    tx = twc[0,0]
+    ty = twc[1,0]
+    tz = twc[2,0]
+    qx = qwc[0]
+    qy = qwc[1]
+    qz = qwc[2]
+    qw = qwc[3]
+    return img_id, qw, qx, qy, qz, tx, ty, tz, cam_id, img_name
+
+
+def get_trajectory(file):
+    tx_list = []
+    ty_list = []
+    tz_list = []
+    name_list = []
+
+    with open(file) as f:
+        lines = f.readlines()
+        for i, line in enumerate(lines):
+            if line[0]=='#':
+                continue
+            
+            if i%2==0:
+                # print(line)
+                # print(len(line.split(' ')))
+                # print(extract_cam_pose_from_line(line))
+                img_id, qw, qx, qy, qz, tx, ty, tz, cam_id, img_name = extract_cam_pose_from_line(line)
+                tx_list.append(tx)
+                ty_list.append(ty)
+                tz_list.append(tz)
+                name_list.append(img_name)
+
+        df = pd.DataFrame()
+        df['image']=name_list
+        df['x']=tx_list
+        df['y']=ty_list
+        df['z']=tz_list
+        df = df.sort_values('image')
+
+        return (df['x'].to_list(), df['y'].to_list(), df['z'].to_list())
+
 
 
 if __name__=='__main__':
