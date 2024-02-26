@@ -203,6 +203,25 @@ def find_ATE(pred:np.ndarray, gt:np.ndarray)->tuple():
     return (float(Total_ATE), float(Mean_ATE))
 
 
+
+def median_of_non_zero_values(arr):
+    """
+    Calculates the median of the non-zero values in a flattened array.
+
+    Args:
+    arr: A NumPy array of any shape.
+
+    Returns:
+    The median of the non-zero values in the flattened array, or np.nan if there are no non-zero values.
+    """
+
+    flat_arr = arr.flatten()
+    non_zero_elements = flat_arr[flat_arr != 0]
+    if len(non_zero_elements) > 0:
+        return np.median(non_zero_elements)
+    else:
+        return np.nan
+
 def mean_squared_error_depth(predicted: np.ndarray, gt: np.ndarray, normalize=True)->float:
     '''
     Takes two 2D np array and calculates the pixelwise MSE error between them 
@@ -236,24 +255,6 @@ def mean_squared_error_depth(predicted: np.ndarray, gt: np.ndarray, normalize=Tr
 
     mse = ((gt-predicted)**2).mean()
     return float(mse)
-
-def median_of_non_zero_values(arr):
-    """
-    Calculates the median of the non-zero values in a flattened array.
-
-    Args:
-    arr: A NumPy array of any shape.
-
-    Returns:
-    The median of the non-zero values in the flattened array, or np.nan if there are no non-zero values.
-    """
-
-    flat_arr = arr.flatten()
-    non_zero_elements = flat_arr[flat_arr != 0]
-    if len(non_zero_elements) > 0:
-        return np.median(non_zero_elements)
-    else:
-        return np.nan
 
 if __name__=='__main__':
     a = np.random.random_integers(0,40, size=(500,500))
