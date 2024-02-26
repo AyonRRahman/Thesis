@@ -259,4 +259,5 @@ if __name__=='__main__':
     a = np.random.random_integers(0,40, size=(500,500))
     b = np.random.random_integers(0,40, size=(500,500))
 
-    print(mean_squared_error_depth(a,b, normalize=False))
+    print(np.sqrt(mean_squared_error_depth(a,b, normalize=False)))
+    
