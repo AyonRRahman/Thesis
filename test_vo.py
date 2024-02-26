@@ -115,7 +115,15 @@ def main():
 
         pose_mat = pose_vec2mat(pose).squeeze(0).cpu().numpy()
         pose_mat = np.vstack([pose_mat, np.array([0, 0, 0, 1])])
-        global_pose = global_pose @  np.linalg.inv(pose_mat)
+        # print(pose_mat[3,0:3])
+        # print(pose_mat[0:3, 0:3].T)
+        inverse_of_pose = np.vstack([np.hstack([pose_mat[0:3, 0:3].T, -(pose_mat[0:3, 0:3]@(pose_mat[3,0:3].reshape(3,1))) ]), np.array([0, 0, 0, 1])])
+
+        # print(inverse_of_pose - np.linalg.inv(pose_mat))
+
+        global_pose = global_pose @ inverse_of_pose
+        
+        # global_pose = global_pose @  np.linalg.inv(pose_mat)
 
         poses.append(global_pose[0:3, :].reshape(1, 12))
 
