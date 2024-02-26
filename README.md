@@ -42,6 +42,9 @@ now from the native terminal:
 ```bash
 sudo ./Create_depth_images.sh 
 ```
+## Crop and downscale image and depth and creating the mask
+use the functions crop_and_downscale_colmap_undistorted_image to crop and downscale images and depth.
+Use generate_mask_from_depth to get the masks.
 ## Download the Kitty Raw dataset
 Official link to download the dataset:
 http://www.cvlibs.net/download.php?file=raw_data_downloader.zip
