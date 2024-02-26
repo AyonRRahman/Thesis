@@ -203,31 +203,60 @@ def find_ATE(pred:np.ndarray, gt:np.ndarray)->tuple():
     return (float(Total_ATE), float(Mean_ATE))
 
 
-def mean_squared_error_depth(predicted: np.ndarray, gt: np.ndarray)->float:
+def mean_squared_error_depth(predicted: np.ndarray, gt: np.ndarray, normalize=True)->float:
     '''
-    Takes two 2D np array and calculates the pixelwise MSE error between them (normalized by max value)
-    args:
+    Takes two 2D np array and calculates the pixelwise MSE error between them 
+    (normalized by max value or scaled using median)
+    Args:
         predicted: predicted depth map
         gt: ground truth depth map
+        normalize(bool): normalize if true scale using median if False
     
-    return:
+    Returns:
         mse: mean squared error pixelwise
 
     '''
     assert predicted.shape == gt.shape 
-    #normalize both
-    gt = gt/gt.max()
-    mask = np.array(gt, dtype=bool).astype(int)
+    if normalize:
+        #normalize both
+        gt = gt/gt.max()
+        mask = np.array(gt, dtype=bool).astype(int)
 
-    predicted = (predicted*mask) #element wise multiply the mask
-    predicted = predicted/predicted.max()
+        predicted = (predicted*mask) #element wise multiply the mask
+        predicted = predicted/predicted.max()
+
+    else:
+        gt_median = median_of_non_zero_values(gt)
+        predicted_median = median_of_non_zero_values(predicted)
+
+        scale = gt_median/predicted_median
+        print(scale)
+        predicted = predicted*scale
+
 
     mse = ((gt-predicted)**2).mean()
     return float(mse)
 
+def median_of_non_zero_values(arr):
+    """
+    Calculates the median of the non-zero values in a flattened array.
+
+    Args:
+    arr: A NumPy array of any shape.
+
+    Returns:
+    The median of the non-zero values in the flattened array, or np.nan if there are no non-zero values.
+    """
+
+    flat_arr = arr.flatten()
+    non_zero_elements = flat_arr[flat_arr != 0]
+    if len(non_zero_elements) > 0:
+        return np.median(non_zero_elements)
+    else:
+        return np.nan
 
 if __name__=='__main__':
-    a = np.random.rand(500,500)
-    b = np.random.rand(500,500)
+    a = np.random.random_integers(0,40, size=(500,500))
+    b = np.random.random_integers(0,40, size=(500,500))
 
-    print(mean_squared_error_depth(a,b))
+    print(mean_squared_error_depth(a,b, normalize=False))
