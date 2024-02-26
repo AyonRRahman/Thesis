@@ -23,3 +23,4 @@ experiments.py
 /data/Eiffel-Tower_ready_Downscaled_colmap/*
 /data/scaled_and_cropped_depth/*
 /models/CPD/CPD-R.pth
+/data/scaled_and_cropped_mask/*

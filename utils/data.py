@@ -274,7 +274,31 @@ def crop_and_downscale_colmap_undistorted_image(root='data/Eiffel-Tower_undistor
 
         print(f"output depth shape {scaled_img.shape}")
         
+
+def generate_mask_from_depth(dir='data/scaled_and_cropped_depth', output_dir = 'data/scaled_and_cropped_mask'):
+    '''
+    reads the depth maps from dir directory and generates a mask for non zero values
+    and saves them in the output_dir.
+
+    '''
+    assert os.path.isdir(dir)
+
+    dir = Path(dir)
+    output_dir = Path(output_dir)
+    output_dir.makedirs_p()
+    folders = dir.glob('*')
+    for folder in folders:
+        # print(folder)
+        images = folder.glob('*.png')
+        (output_dir/folder.split('/')[-1]).makedirs_p()
+        for i,image in tqdm(enumerate(sorted(images))):
+            depth = np.array(ImageOps.grayscale(Image.open(image)))
+            mask = depth!=0
+            save_name = output_dir/folder.split('/')[-1]/'mask_'+image.split('/')[-1].split('_')[-1]
             
+            Image.fromarray(mask).save(save_name)
+            
+        
 
         
         
