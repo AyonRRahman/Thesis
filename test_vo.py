@@ -25,9 +25,7 @@ from PIL import Image, ImageOps
 parser = argparse.ArgumentParser(description='Script for getting odometry',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--pretrained_dir", required=True, type=str, help="path containing pretrained PoseNet")
-parser.add_argument("--img-height", default=256, type=int, help="Image height")
-parser.add_argument("--img-width", default=832, type=int, help="Image width")
-parser.add_argument("--no-resize", action='store_true', help="no resizing is done")
+
 
 parser.add_argument("--dataset-dir", type=str, help="Dataset directory")
 parser.add_argument("--output-dir", default='pose_evaluation', type=str, help="Output directory for saving predictions in a big 3D numpy file")

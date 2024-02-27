@@ -47,52 +47,68 @@ compute_ssim_loss = SSIM().to(device)
 
 # photometric loss
 # geometry consistency loss
-def compute_photo_and_geometry_loss(tgt_img, ref_imgs, intrinsics, tgt_depth, ref_depths, poses, poses_inv, max_scales, with_ssim, with_mask, with_auto_mask, padding_mode):
+def compute_photo_and_geometry_loss(tgt_img, ref_imgs, intrinsics, tgt_depth, ref_depths, poses, poses_inv, max_scales, with_ssim, with_mask, with_auto_mask, padding_mode, tgt_mask=None, ref_masks=None):
 
     photo_loss = 0
     geometry_loss = 0
 
     num_scales = min(len(tgt_depth), max_scales)
-    for ref_img, ref_depth, pose, pose_inv in zip(ref_imgs, ref_depths, poses, poses_inv):
-        for s in range(num_scales):
+    if tgt_mask is None:
+        for ref_img, ref_depth, pose, pose_inv in zip(ref_imgs, ref_depths, poses, poses_inv):
+            for s in range(num_scales):
 
-            # # downsample img
-            # b, _, h, w = tgt_depth[s].size()
-            # downscale = tgt_img.size(2)/h
-            # if s == 0:
-            #     tgt_img_scaled = tgt_img
-            #     ref_img_scaled = ref_img
-            # else:
-            #     tgt_img_scaled = F.interpolate(tgt_img, (h, w), mode='area')
-            #     ref_img_scaled = F.interpolate(ref_img, (h, w), mode='area')
-            # intrinsic_scaled = torch.cat((intrinsics[:, 0:2]/downscale, intrinsics[:, 2:]), dim=1)
-            # tgt_depth_scaled = tgt_depth[s]
-            # ref_depth_scaled = ref_depth[s]
+                # upsample depth
+                b, _, h, w = tgt_img.size()
+                tgt_img_scaled = tgt_img
+                ref_img_scaled = ref_img
+                intrinsic_scaled = intrinsics
+                if s == 0:
+                    tgt_depth_scaled = tgt_depth[s]
+                    ref_depth_scaled = ref_depth[s]
+                else:
+                    tgt_depth_scaled = F.interpolate(tgt_depth[s], (h, w), mode='nearest')
+                    ref_depth_scaled = F.interpolate(ref_depth[s], (h, w), mode='nearest')
 
-            # upsample depth
-            b, _, h, w = tgt_img.size()
-            tgt_img_scaled = tgt_img
-            ref_img_scaled = ref_img
-            intrinsic_scaled = intrinsics
-            if s == 0:
-                tgt_depth_scaled = tgt_depth[s]
-                ref_depth_scaled = ref_depth[s]
-            else:
-                tgt_depth_scaled = F.interpolate(tgt_depth[s], (h, w), mode='nearest')
-                ref_depth_scaled = F.interpolate(ref_depth[s], (h, w), mode='nearest')
+                photo_loss1, geometry_loss1 = compute_pairwise_loss(tgt_img_scaled, ref_img_scaled, tgt_depth_scaled, ref_depth_scaled, pose,
+                                                                    intrinsic_scaled, with_ssim, with_mask, with_auto_mask, padding_mode)
+                photo_loss2, geometry_loss2 = compute_pairwise_loss(ref_img_scaled, tgt_img_scaled, ref_depth_scaled, tgt_depth_scaled, pose_inv,
+                                                                    intrinsic_scaled, with_ssim, with_mask, with_auto_mask, padding_mode)
 
-            photo_loss1, geometry_loss1 = compute_pairwise_loss(tgt_img_scaled, ref_img_scaled, tgt_depth_scaled, ref_depth_scaled, pose,
-                                                                intrinsic_scaled, with_ssim, with_mask, with_auto_mask, padding_mode)
-            photo_loss2, geometry_loss2 = compute_pairwise_loss(ref_img_scaled, tgt_img_scaled, ref_depth_scaled, tgt_depth_scaled, pose_inv,
-                                                                intrinsic_scaled, with_ssim, with_mask, with_auto_mask, padding_mode)
+                photo_loss += (photo_loss1 + photo_loss2)
+                geometry_loss += (geometry_loss1 + geometry_loss2)
 
-            photo_loss += (photo_loss1 + photo_loss2)
-            geometry_loss += (geometry_loss1 + geometry_loss2)
+    else:
+
+        for ref_img, ref_depth, pose, pose_inv, ref_mask in zip(ref_imgs, ref_depths, poses, poses_inv, ref_masks):
+            for s in range(num_scales):
+                b, _, h, w = tgt_img.size()
+                tgt_img_scaled = tgt_img
+                ref_img_scaled = ref_img
+                tgt_mask = tgt_mask
+                intrinsic_scaled = intrinsics
+                
+                if s == 0:
+                    tgt_depth_scaled = tgt_depth[s]
+                    ref_depth_scaled = ref_depth[s]
+                else:
+                    print('with mask but more scale not implemented')
+                    exit()
+
+                photo_loss1, geometry_loss1 = compute_pairwise_loss(tgt_img_scaled, ref_img_scaled, tgt_depth_scaled, ref_depth_scaled, pose,
+                                                                    intrinsic_scaled, with_ssim, with_mask, with_auto_mask, padding_mode, tgt_mask)
+                photo_loss2, geometry_loss2 = compute_pairwise_loss(ref_img_scaled, tgt_img_scaled, ref_depth_scaled, tgt_depth_scaled, pose_inv,
+                                                                    intrinsic_scaled, with_ssim, with_mask, with_auto_mask, padding_mode, ref_mask)
+
+                photo_loss += (photo_loss1 + photo_loss2)
+                geometry_loss += (geometry_loss1 + geometry_loss2)
+
+        
+
 
     return photo_loss, geometry_loss
 
 
-def compute_pairwise_loss(tgt_img, ref_img, tgt_depth, ref_depth, pose, intrinsic, with_ssim, with_mask, with_auto_mask, padding_mode):
+def compute_pairwise_loss(tgt_img, ref_img, tgt_depth, ref_depth, pose, intrinsic, with_ssim, with_mask, with_auto_mask, padding_mode, tgt_mask=None):
 
     ref_img_warped, valid_mask, projected_depth, computed_depth = inverse_warp2(ref_img, tgt_depth, ref_depth, pose, intrinsic, padding_mode)
 
@@ -111,6 +127,12 @@ def compute_pairwise_loss(tgt_img, ref_img, tgt_depth, ref_depth, pose, intrinsi
     if with_mask == True:
         weight_mask = (1 - diff_depth)
         diff_img = diff_img * weight_mask
+    #apply the gt mask
+    if tgt_mask is not None:
+        # print(f"tgt mask {tgt_mask.shape}")
+        # print(f"valid mask {valid_mask.shape}")
+        valid_mask = torch.mul(valid_mask, tgt_mask.unsqueeze(1))
+        # print(f"valid mask {valid_mask.shape}")
 
     # compute all loss
     reconstruction_loss = mean_on_mask(diff_img, valid_mask)

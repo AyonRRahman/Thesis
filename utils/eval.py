@@ -229,13 +229,14 @@ def mean_squared_error_depth(predicted: np.ndarray, gt: np.ndarray, normalize=Tr
     Args:
         predicted: predicted depth map
         gt: ground truth depth map
-        normalize(bool): normalize if true scale using median if False
+        normalize(bool): normalize if true, scale using median if False
     
     Returns:
         mse: mean squared error pixelwise
 
     '''
     assert predicted.shape == gt.shape 
+    scale = None
     if normalize:
         #normalize both
         gt = gt/gt.max()
@@ -249,12 +250,12 @@ def mean_squared_error_depth(predicted: np.ndarray, gt: np.ndarray, normalize=Tr
         predicted_median = median_of_non_zero_values(predicted)
 
         scale = gt_median/predicted_median
-        print(scale)
+        # print(scale)
         predicted = predicted*scale
 
 
     mse = ((gt-predicted)**2).mean()
-    return float(mse)
+    return float(mse), float(scale)
 
 if __name__=='__main__':
     a = np.random.random_integers(0,40, size=(500,500))

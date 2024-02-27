@@ -155,3 +155,95 @@ class SequenceFolderRMI(data.Dataset):
 
     def __len__(self):
         return len(self.samples)
+
+
+
+
+class SequenceFolderMask(data.Dataset):
+    """A sequence data loader where the files are arranged in this way:
+        root/scene_1/0000000.jpg
+        root/scene_1/0000001.jpg
+        ..
+        root/scene_1/cam.txt
+        root/scene_2/0000000.jpg
+        .
+        transform functions must take in a list a images and a numpy array (usually intrinsics matrix)
+        mask folder has structure:
+            root/scene_1/000.png
+            root/scene_1/001.png
+            ...
+            root/scene_2/000.png
+            ...
+        
+    """
+
+    def __init__(self, root, mask_root, seed=None, train=True, sequence_length=3, transform=None, skip_frames=1, image_extention='png'):
+        np.random.seed(seed)
+        random.seed(seed)
+        self.root = Path(root)
+        self.mask_root = Path(mask_root)
+        
+        scene_list_path = self.root/'train.txt' if train else self.root/'val.txt'
+        self.scenes = [self.root/folder[:-1] for folder in open(scene_list_path)]
+        # print(f"found these scenes: {self.scenes}")
+        self.transform = transform
+        # self.dataset = dataset
+        self.k = skip_frames
+        self.train = train
+        self.crawl_folders(sequence_length, image_extention)
+
+    def crawl_folders(self, sequence_length, image_extention):
+        # k skip frames
+        sequence_set = []
+        demi_length = (sequence_length-1)//2
+        shifts = list(range(-demi_length * self.k, demi_length * self.k + 1, self.k))
+        shifts.pop(demi_length)
+        for scene in self.scenes:
+            intrinsics = np.genfromtxt(scene/'cam.txt').astype(np.float32).reshape((3, 3))
+            imgs = sorted(scene.files(f'*.{image_extention}'))
+
+            if len(imgs) < sequence_length:
+                continue
+            
+            for i in range(demi_length * self.k, len(imgs)-demi_length * self.k):
+                image_name = imgs[i].split('/')[-1]
+                scene_name = imgs[i].split('/')[-2]
+                mask_name = self.mask_root/scene_name/('mask_'+image_name)
+    
+                sample = {'intrinsics': intrinsics, 'tgt': imgs[i],'tgt_mask' : mask_name, 'ref_imgs': [], 'ref_masks':[]}
+                
+                for j in shifts:
+                    sample['ref_imgs'].append(imgs[i+j])
+                    image_name = imgs[i+j].split('/')[-1]
+                    scene_name = imgs[i+j].split('/')[-2]
+                    mask_name = self.mask_root/scene_name/('mask_'+image_name)
+                    sample['ref_masks'].append(mask_name)
+
+                sequence_set.append(sample)
+                
+        random.shuffle(sequence_set)
+
+        self.samples = sequence_set
+    
+
+
+    def __getitem__(self, index):
+        sample = self.samples[index]
+        tgt_img = load_as_float(sample['tgt'])
+        tgt_mask = load_as_float(sample['tgt_mask'])
+        ref_imgs = [load_as_float(ref_img) for ref_img in sample['ref_imgs']]
+        ref_masks = [load_as_float(ref_mask) for ref_mask in sample['ref_masks']]
+
+        if self.transform is not None:
+            imgs, intrinsics, masks = self.transform([tgt_img] + ref_imgs, np.copy(sample['intrinsics']),[tgt_mask]+ref_masks)
+            tgt_img = imgs[0]
+            ref_imgs = imgs[1:]
+            tgt_mask = masks[0]
+            ref_masks = masks[1:]
+
+        else:
+            intrinsics = np.copy(sample['intrinsics'])
+        return tgt_img, ref_imgs, intrinsics, np.linalg.inv(intrinsics), tgt_mask, ref_masks
+
+    def __len__(self):
+        return len(self.samples)

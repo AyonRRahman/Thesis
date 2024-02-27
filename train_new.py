@@ -17,7 +17,7 @@ import torch.utils.data
 import custom_transforms
 from utils.eval import mean_squared_error_depth
 from utils_SC import tensor2array, save_checkpoint
-from datasets.sequence_folders import SequenceFolder, SequenceFolderRMI
+from datasets.sequence_folders import SequenceFolder, SequenceFolderRMI,SequenceFolderMask
 
 from loss_functions import compute_smooth_loss, compute_photo_and_geometry_loss, compute_errors
 from logger import TermLogger, AverageMeter
@@ -29,6 +29,7 @@ parser = argparse.ArgumentParser(description='Structure from Motion Learner trai
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 parser.add_argument('data', metavar='DIR', help='path to dataset')
+parser.add_argument('mask_dir', metavar='DIR', help='Path to the masks', default='./data/scaled_and_cropped_mask')
 # parser.add_argument('--folder-type', type=str, choices=['sequence'], default='sequence', help='the dataset dype to train')
 parser.add_argument('--sequence-length', type=int, metavar='N', help='sequence length for training', default=3)
 parser.add_argument('-j', '--workers', default=2, type=int, metavar='N', help='number of data loading workers')
@@ -69,7 +70,12 @@ parser.add_argument('--depth_directory', type=str, default='/mundus/mrahman527/T
 parser.add_argument('--use_pretrained', action='store_true', help='to start from the last saved models')
 parser.add_argument('--use_RMI', action='store_true', help='use RMI input space instead of RGB.')
 parser.add_argument('--train_until_converge', action='store_true', help='train till converging without stopping')
+parser.add_argument('--use_mask_for_train', action='store_true',
+            help='new dataloader with mask will be used and the mask will be used to calculate the loss')
 
+
+
+val_depth_iter = 0
 best_error = -1
 n_iter = 0
 n_iter_without_best = 0
@@ -102,6 +108,11 @@ def main():
     global w1, w2, w3
 
     args = parser.parse_args()
+
+    if args.use_mask_for_train and not os.path.exists(args.mask_dir):
+        print('got argument to use mask for training but the provided mask dir does not exists')
+        return
+
     w1, w2, w3 = args.photo_loss_weight, args.smooth_loss_weight, args.geometry_consistency_weight
     print(f'initial weights: {w1, w2, w3}')
     print(f"batch size {args.batch_size}")
@@ -171,51 +182,93 @@ def main():
     valid_transform = custom_transforms.Compose([custom_transforms.ArrayToTensor(), normalize])
 
     print("=> fetching scenes in '{}'".format(args.data))
+    
     global val_set # to use it in the validation step to get the gt depth
 
-    if not args.use_RMI:
-        print('not using RMI input space')
-        train_set = SequenceFolder(
-            args.data,
-            transform=train_transform,
-            seed=args.seed,
-            train=True,
-            sequence_length=args.sequence_length,
-            image_extention = args.image_extention
-        )
-        #Validation set is the same type as training set to measure photometric loss from warping
 
-        # global val_set # to use it in the validation step to get the gt depth
+    depth_val_set = SequenceFolder(
+                args.data,
+                transform=valid_transform,
+                seed=args.seed,
+                train=False,
+                sequence_length=args.sequence_length,
+                image_extention = args.image_extention
+            )
 
-        val_set = SequenceFolder(
-            args.data,
-            transform=valid_transform,
-            seed=args.seed,
-            train=False,
-            sequence_length=args.sequence_length,
-            image_extention = args.image_extention
-        )
+    if not args.use_mask_for_train:
+        if not args.use_RMI:
+            print('not using RMI input space')
+            train_set = SequenceFolder(
+                args.data,
+                transform=train_transform,
+                seed=args.seed,
+                train=True,
+                sequence_length=args.sequence_length,
+                image_extention = args.image_extention
+            )
+            #Validation set is the same type as training set to measure photometric loss from warping
+
+            # global val_set # to use it in the validation step to get the gt depth
+
+            val_set = SequenceFolder(
+                args.data,
+                transform=valid_transform,
+                seed=args.seed,
+                train=False,
+                sequence_length=args.sequence_length,
+                image_extention = args.image_extention
+            )
+        else:
+            print('using RMI input space')
+            train_set = SequenceFolderRMI(
+                args.data,
+                transform=train_transform,
+                seed=args.seed,
+                train=True,
+                sequence_length=args.sequence_length,
+                image_extention = args.image_extention
+            )
+            #Validation set is the same type as training set to measure photometric loss from warping
+
+            
+            val_set = SequenceFolderRMI(
+                args.data,
+                transform=valid_transform,
+                seed=args.seed,
+                train=False,
+                sequence_length=args.sequence_length,
+                image_extention = args.image_extention
+            )
     else:
-        print('using RMI input space')
-        train_set = SequenceFolderRMI(
+        print('Using Masked Dataset')
+        train_set = SequenceFolderMask(
             args.data,
+            args.mask_dir,
             transform=train_transform,
             seed=args.seed,
             train=True,
             sequence_length=args.sequence_length,
             image_extention = args.image_extention
         )
-        #Validation set is the same type as training set to measure photometric loss from warping
-
-        
-        val_set = SequenceFolderRMI(
+           
+        val_set = SequenceFolderMask(
             args.data,
+            args.mask_dir,
             transform=valid_transform,
             seed=args.seed,
             train=False,
             sequence_length=args.sequence_length,
             image_extention = args.image_extention
         )
+
+        # depth_val_set = SequenceFolder(
+        #         args.data,
+        #         transform=valid_transform,
+        #         seed=args.seed,
+        #         train=False,
+        #         sequence_length=args.sequence_length,
+        #         image_extention = args.image_extention
+        #     )
 
 
     print('{} samples found in {} train scenes'.format(len(train_set), len(train_set.scenes)))
@@ -223,12 +276,13 @@ def main():
     train_loader = torch.utils.data.DataLoader(
         train_set, batch_size=args.batch_size, shuffle=True,
         num_workers=args.workers, pin_memory=True)
+
     val_loader = torch.utils.data.DataLoader(
         val_set, batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
     depth_val_loader = torch.utils.data.DataLoader(
-        val_set, batch_size=1, shuffle=False,
+        depth_val_set, batch_size=1, shuffle=False,
         num_workers=1, pin_memory=True)
 
     if args.epoch_size == 0:
@@ -237,7 +291,7 @@ def main():
     # create model
     print("=> creating model")
     
-    #custom ayon
+    #custom 
     from models.SFM.DispNetS import DispNetS
     disp_net = DispNetS().to(device)
     from models.SC_SFM.PoseResNet import PoseResNet
@@ -327,20 +381,34 @@ def main():
             if epoch<=epoch_skip:
                 n_iter+= len(train_loader)
                 continue
+
         # train for one epoch
         logger.reset_train_bar()
-        train_loss = train(args, train_loader, disp_net, pose_net, optimizer, args.epoch_size, logger, training_writer)
+        if not args.use_mask_for_train:
+            train_loss = train(args, train_loader, disp_net, pose_net, optimizer, args.epoch_size, logger, training_writer)
+        else:
+            train_loss = train_with_mask(args, train_loader, disp_net, pose_net, optimizer, args.epoch_size, logger, training_writer)
+        
         logger.train_writer.write(' * Avg Loss : {:.3f}'.format(train_loss))
 
         # evaluate on validation set
         logger.reset_valid_bar()
         
-        errors, error_names = validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, output_writers)
+        if not args.use_mask_for_train:
+            errors, error_names = validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, output_writers)
+        else:
+            errors, error_names = validate_without_gt_with_mask(args, val_loader, disp_net, pose_net, epoch, logger, output_writers)
+
         #mse on depth with gt
         print(f'validating depth {epoch}')
-        mse = validate_depth(depth_val_loader, disp_net)
         
-        training_writer.add_scalar('mse depth', mse, epoch)
+        # if not args.use_mask_for_train:
+        mse = validate_depth(depth_val_loader, disp_net, training_writer)        
+        training_writer.add_scalar('mse depth', mse)
+        
+        # else:
+        #     #need to write this part of the script    
+        #     pass
 
         error_string = ', '.join('{} : {:.3f}'.format(name, error) for name, error in zip(error_names, errors))
         logger.valid_writer.write(' * Avg {}'.format(error_string))
@@ -482,6 +550,91 @@ def train(args, train_loader, disp_net, pose_net, optimizer, epoch_size, logger,
     return losses.avg[0]
 
 
+
+def train_with_mask(args, train_loader, disp_net, pose_net, optimizer, epoch_size, logger, train_writer):
+    print('training with mask')
+    global n_iter, device
+    global w1, w2, w3
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    losses = AverageMeter(precision=4)
+    
+    # switch to train mode
+    disp_net.train()
+    pose_net.train()
+
+    end = time.time()
+    logger.train_bar.update(0)
+
+    for i, (tgt_img, ref_imgs, intrinsics, intrinsics_inv, tgt_mask, ref_masks) in enumerate(train_loader):
+        log_losses = i > 0 and n_iter % args.print_freq == 0
+
+        # measure data loading time
+        data_time.update(time.time() - end)
+        tgt_img = tgt_img.to(device)
+        ref_imgs = [img.to(device) for img in ref_imgs]
+        tgt_mask = tgt_mask.to(device)
+        ref_masks = [mask.to(device) for mask in ref_masks]
+        intrinsics = intrinsics.to(device)
+
+        # compute output
+        tgt_depth, ref_depths = compute_depth(disp_net, tgt_img, ref_imgs)
+        poses, poses_inv = compute_pose_with_inv(pose_net, tgt_img, ref_imgs)
+
+        loss_1, loss_3 = compute_photo_and_geometry_loss(tgt_img, ref_imgs, intrinsics, tgt_depth, ref_depths,
+                                                         poses, poses_inv, args.num_scales, args.with_ssim,
+                                                         args.with_mask, args.with_auto_mask, args.padding_mode, tgt_mask, ref_masks)
+
+        loss_2 = compute_smooth_loss(tgt_depth, tgt_img, ref_depths, ref_imgs)
+
+        if not args.optimize_loss_weight:
+            loss = w1*loss_1 + w2*loss_2 + w3*loss_3
+        else:
+            loss = (sigmoid(w1)*loss_1 + sigmoid(w2)*loss_2 + sigmoid(w3)*loss_3)/(sigmoid(w1)+sigmoid(w2)+sigmoid(w3))
+
+        if log_losses:
+            train_writer.add_scalar('photometric_error', loss_1.item(), n_iter)
+            train_writer.add_scalar('disparity_smoothness_loss', loss_2.item(), n_iter)
+            train_writer.add_scalar('geometry_consistency_loss', loss_3.item(), n_iter)
+            train_writer.add_scalar('total_loss', loss.item(), n_iter)
+
+        # record loss and EPE
+        losses.update(loss.item(), args.batch_size)
+
+        # compute gradient and do Adam step
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        with open(args.save_path/args.log_full, 'a') as csvfile:
+            writer = csv.writer(csvfile, delimiter='\t')
+            writer.writerow([loss.item(), loss_1.item(), loss_2.item(), loss_3.item()])
+        logger.train_bar.update(i+1)
+        if i % args.print_freq == 0:
+            logger.train_writer.write('Train: Time {} Data {} Loss {}'.format(batch_time, data_time, losses))
+        if i >= (epoch_size - 1):
+            break
+
+        n_iter += 1
+        
+        if i%100==0:
+            # Check how much GPU memory is currently being used
+            memory_used = torch.cuda.memory_allocated()
+            print(f"Current GPU memory used: {memory_used / 1024**3:.2f} GB")
+
+            # Check how much GPU memory is currently cached
+            memory_cached = torch.cuda.memory_cached()
+            print(f"Current GPU memory cached: {memory_cached / 1024**3:.2f} GB")
+            print(f"Max GPU memory used: {torch.cuda.max_memory_allocated()/1024**3} GB")
+        
+    return losses.avg[0]
+
+
+
 @torch.no_grad()
 def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, output_writers=[]):
     #need to add the gt depth images in tensorboard 
@@ -571,6 +724,98 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
 
 
 @torch.no_grad()
+def validate_without_gt_with_mask(args, val_loader, disp_net, pose_net, epoch, logger, output_writers=[]):
+    print('validating with mask')
+    #need to add the gt depth images in tensorboard 
+    global device
+    global val_set
+    global w1, w2, w3
+
+    batch_time = AverageMeter()
+    losses = AverageMeter(i=4, precision=4)
+    log_outputs = len(output_writers) > 0
+
+    # switch to evaluate mode
+    disp_net.eval()
+    pose_net.eval()
+
+    end = time.time()
+    logger.valid_bar.update(0)
+    for i, (tgt_img, ref_imgs, intrinsics, intrinsics_inv, tgt_mask, ref_masks) in enumerate(val_loader):
+        tgt_img = tgt_img.to(device)
+        ref_imgs = [img.to(device) for img in ref_imgs]
+        intrinsics = intrinsics.to(device)
+        intrinsics_inv = intrinsics_inv.to(device)
+
+        tgt_mask = tgt_mask.to(device)
+        ref_masks = [mask.to(device) for mask in ref_masks]
+        
+        # compute output
+        tgt_depth = [1 / disp_net(tgt_img)]
+        ref_depths = []
+        for ref_img in ref_imgs:
+            ref_depth = [1 / disp_net(ref_img)]
+            ref_depths.append(ref_depth)
+
+        if log_outputs and i < len(output_writers):
+            if epoch == 0:
+                output_writers[i].add_image('val Input', tensor2array(tgt_img[0]), 0)
+                current_image = (val_set.samples[i])['tgt'].split('/')[-1]
+                depth_file_name = Path(args.depth_directory)/current_image[0:4]/'depth_images'/'depth_'+current_image
+                #try to use the tensor2array function later for depth
+                print('------------')
+                print(f'current image name {(val_set.samples[i])['tgt'].split('/')[-1]}')
+                print(f"depth_file_name {depth_file_name}")
+                print('------------')
+                
+                depth_image = load_as_float(depth_file_name)
+                depth_image = depth_image/depth_image.max()
+                output_writers[i].add_image('gt depth', tensor2array(torch.tensor(depth_image), max_value=None, colormap='magma'), 0)
+                
+
+            output_writers[i].add_image('val Dispnet Output Normalized',
+                                        tensor2array(1/tgt_depth[0][0], max_value=None, colormap='magma'),
+                                        epoch)
+            output_writers[i].add_image('val Depth Output',
+                                        tensor2array(tgt_depth[0][0], max_value=None, colormap='magma'),
+                                        epoch)
+
+        poses, poses_inv = compute_pose_with_inv(pose_net, tgt_img, ref_imgs)
+
+        loss_1, loss_3 = compute_photo_and_geometry_loss(tgt_img, ref_imgs, intrinsics, tgt_depth, ref_depths,
+                                                         poses, poses_inv, args.num_scales, args.with_ssim,
+                                                         args.with_mask, False, args.padding_mode, tgt_mask, ref_masks)
+
+        loss_2 = compute_smooth_loss(tgt_depth, tgt_img, ref_depths, ref_imgs)
+
+        loss_1 = loss_1.item()
+        loss_2 = loss_2.item()
+        loss_3 = loss_3.item()
+
+        
+        #making sure to stop calculating the weights gradients.
+        with torch.no_grad():
+            if not args.optimize_loss_weight:
+                loss = w1*loss_1 + w2*loss_2 + w3*loss_3
+            else:
+                loss = (sigmoid(w1)*loss_1 + sigmoid(w2)*loss_2 + sigmoid(w3)*loss_3)/(sigmoid(w1)+sigmoid(w2)+sigmoid(w3))
+
+        # loss = loss_1
+        losses.update([loss, loss_1, loss_2, loss_3])
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+        logger.valid_bar.update(i+1)
+        if i % args.print_freq == 0:
+            logger.valid_writer.write('valid: Time {} Loss {}'.format(batch_time, losses))
+
+        
+    logger.valid_bar.update(len(val_loader))
+    return losses.avg, ['Total loss', 'Photo loss', 'Smooth loss', 'Consistency loss']
+
+
+@torch.no_grad()
 def load_gt_depth(current_image):
     year = current_image[0:4]
     depth_dir = Path('data/scaled_and_cropped_depth/')/year
@@ -580,10 +825,10 @@ def load_gt_depth(current_image):
     return depth_gt_gray
 
 @torch.no_grad()
-def validate_depth(depth_val_loader, disp_net):
+def validate_depth(depth_val_loader, disp_net, training_writer):
     global device
     global val_set
-    
+    global val_depth_iter
     # switch to evaluate mode
     disp_net.eval()
     total_mse_loss = 0
@@ -596,7 +841,12 @@ def validate_depth(depth_val_loader, disp_net):
         current_image = (val_set.samples[i])['tgt'].split('/')[-1]
         gt_depth = load_gt_depth(current_image)
 
-        total_mse_loss += mean_squared_error_depth(predicted=predicted_depth, gt=gt_depth)
+        mse, scale = mean_squared_error_depth(predicted=predicted_depth, gt=gt_depth, normalize=False)
+        if scale is not None:
+            training_writer.add_scalar('scale', scale, val_depth_iter)
+            val_depth_iter+=1
+
+        total_mse_loss += mse
         
     return total_mse_loss/len(depth_val_loader)
 
