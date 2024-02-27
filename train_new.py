@@ -404,7 +404,7 @@ def main():
         
         # if not args.use_mask_for_train:
         mse = validate_depth(depth_val_loader, disp_net, training_writer)        
-        training_writer.add_scalar('mse depth', mse)
+        training_writer.add_scalar('mse depth', mse, epoch)
         
         # else:
         #     #need to write this part of the script    
