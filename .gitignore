@@ -24,3 +24,4 @@ experiments.py
 /data/scaled_and_cropped_depth/*
 /models/CPD/CPD-R.pth
 /data/scaled_and_cropped_mask/*
+/checkpoints_old/*
