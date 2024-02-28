@@ -13,6 +13,3 @@
 [submodule "Thirdparty/openMVS"]
 	path = Thirdparty/openMVS
 	url = git@github.com:cdcseacave/openMVS.git
-[submodule "Thirdparty/Depth_Anything"]
-	path = Thirdparty/Depth_Anything
-	url = https://github.com/LiheYoung/Depth-Anything.git
