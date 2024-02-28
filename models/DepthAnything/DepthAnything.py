@@ -1,4 +1,29 @@
+from dpt import DepthAnything
+
+from path import Path 
+from tqdm import tqdm
+
+import torch
 import torch.nn as nn
+from torchvision.transforms import Compose
+import torchvision.transforms as tv_transform
+import numpy as np
+
+
+import matplotlib.pyplot as plt
+from imageio.v2 import imread, imsave
+DEVICE = 'cuda' if torch.cuda.is_available() else 'cpu'
+
+def load_tensor_image(filename):
+    
+    global DEVICE
+    img = imread(filename).astype(np.float32)
+    
+    h, w, _ = img.shape
+    
+    img = np.transpose(img, (2, 0, 1))
+    tensor_img = ((torch.from_numpy(img).unsqueeze(0)/255-0.5)/0.5).to(DEVICE)
+    return tensor_img
 
 class Resize(object):
     
@@ -133,9 +158,28 @@ class DepthAnythingSFM(nn.Module):
 
     def forward(self, x):
         x = self.transform(x)
-        depth = depth_anything(x)
+        depth = self.model(x)
         depth = torch.tensor(255) - depth
         depth = tv_transform.functional.resize(depth, self._size)
 
         return depth
+    
+
+if __name__=='__main__':
+    dir = Path('/mundus/mrahman527/Thesis/data/Eiffel-Tower_ready_Downscaled_colmap/2015')
+    filenames = dir.glob("*.png")
+    print(len(filenames))
+
+    model = DepthAnythingSFM('vits')
+    image = load_tensor_image(filenames[0])
+    print(f"image shape {image.shape}")
+    depth = model(image)
+    print(depth.shape)
+    depth = depth.detach().cpu().numpy().squeeze()
+    depth = 255*(depth/depth.max())
+    plt.imshow(255-depth)
+    plt.colorbar()
+    plt.show()
+
+
 

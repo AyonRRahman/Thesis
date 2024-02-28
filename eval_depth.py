@@ -20,14 +20,6 @@ parser.add_argument("--ratio_name", help="names for saving ratios", type=str)
 args = parser.parse_args()
 
 
-def mkdir_if_not_exists(path):
-    """Make a directory if it does not exist.
-    Args:
-        path: directory to create
-    """
-    if not os.path.exists(path):
-        os.makedirs(path)
-
 
 def compute_depth_errors(gt, pred):
     """Computation of error metrics between predicted and ground truth depths
@@ -55,106 +47,6 @@ def compute_depth_errors(gt, pred):
     elif args.dataset == 'kitti':
         return abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3
 
-
-def depth_visualizer(data):
-    """
-    Args:
-        data (HxW): depth data
-    Returns:
-        vis_data (HxWx3): depth visualization (RGB)
-    """
-
-    inv_depth = 1 / (data + 1e-6)
-    vmax = np.percentile(inv_depth, 95)
-    normalizer = mpl.colors.Normalize(vmin=inv_depth.min(), vmax=vmax)
-    mapper = cm.ScalarMappable(norm=normalizer, cmap='magma')
-    vis_data = (mapper.to_rgba(inv_depth)[:, :, :3] * 255).astype(np.uint8)
-    return vis_data
-
-
-def depth_pair_visualizer(pred, gt):
-    """
-    Args:
-        data (HxW): depth data
-    Returns:
-        vis_data (HxWx3): depth visualization (RGB)
-    """
-
-    inv_pred = 1 / (pred + 1e-6)
-    inv_gt = 1 / (gt + 1e-6)
-
-    vmax = np.percentile(inv_gt, 95)
-    normalizer = mpl.colors.Normalize(vmin=inv_gt.min(), vmax=vmax)
-    mapper = cm.ScalarMappable(norm=normalizer, cmap='magma')
-
-    vis_pred = (mapper.to_rgba(inv_pred)[:, :, :3] * 255).astype(np.uint8)
-    vis_gt = (mapper.to_rgba(inv_gt)[:, :, :3] * 255).astype(np.uint8)
-
-    return vis_pred, vis_gt
-
-
-class DepthEvalEigen():
-    def __init__(self):
-
-        self.min_depth = 1e-3
-
-        if args.dataset == 'nyu':
-            self.max_depth = 10.
-        elif args.dataset == 'kitti':
-            self.max_depth = 80.
-
-    def main(self):
-        pred_depths = []
-
-        """ Get result """
-        # Read precomputed result
-        pred_depths = np.load(os.path.join(args.pred_depth))
-
-        """ Evaluation """
-        if args.dataset == 'nyu':
-            gt_depths = np.load(args.gt_depth)
-        elif args.dataset == 'kitti':
-            gt_depths = []
-            for gt_f in sorted(Path(args.gt_depth).files("*.npy")):
-                gt_depths.append(np.load(gt_f))
-
-        pred_depths = self.evaluate_depth(gt_depths, pred_depths, eval_mono=True)
-
-        """ Save result """
-        # create folder for visualization result
-        if args.vis_dir:
-            save_folder = Path(args.vis_dir)/'vis_depth'
-            mkdir_if_not_exists(save_folder)
-
-            image_paths = sorted(Path(args.img_dir).files('*.png'))
-
-            for i in tqdm(range(len(pred_depths))):
-                # reading image
-                img = cv2.imread(image_paths[i], 1)
-                img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
-                h, w, _ = img.shape
-
-                cat_img = 0
-                if args.dataset == 'nyu':
-                    cat_img = np.zeros((h, 3*w, 3))
-                    cat_img[:, :w] = img
-                    pred = pred_depths[i]
-                    gt = gt_depths[i]
-                    vis_pred, vis_gt = depth_pair_visualizer(pred, gt)
-                    cat_img[:, w:2*w] = vis_pred
-                    cat_img[:, 2*w:3*w] = vis_gt
-                elif args.dataset == 'kitti':
-                    cat_img = np.zeros((2*h, w, 3))
-                    cat_img[:h] = img
-                    pred = pred_depths[i]
-                    vis_pred = depth_visualizer(pred)
-                    cat_img[h:2*h, :] = vis_pred
-
-                # save image
-                cat_img = cat_img.astype(np.uint8)
-                png_path = os.path.join(save_folder, "{:04}.png".format(i))
-                cv2.imwrite(png_path, cv2.cvtColor(cat_img, cv2.COLOR_RGB2BGR))
 
     def evaluate_depth(self, gt_depths, pred_depths, eval_mono=True):
         """evaluate depth result

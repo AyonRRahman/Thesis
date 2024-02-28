@@ -25,3 +25,4 @@ experiments.py
 /models/CPD/CPD-R.pth
 /data/scaled_and_cropped_mask/*
 /checkpoints_old/*
+experiment_with_depth_anything.ipynb
