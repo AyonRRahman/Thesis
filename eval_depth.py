@@ -105,7 +105,7 @@ def main():
     #initialize the models
     if args.depth_model == 'dispnet':
         model = DispNetS()
-        total_param = sum(param.numel() for param in self.model.parameters())
+        total_param = sum(param.numel() for param in model.parameters())
         print(f"total disp net parameter {total_param}")
     
     elif args.depth_model == 'dpts':
@@ -146,6 +146,7 @@ def main():
         gt_depth = load_gt_depth(depth)
         
         pred_depth = model(img).cpu().squeeze().detach().numpy()
+        
         if args.depth_model == 'dispnet':
             pred_depth = 1/pred_depth
 
