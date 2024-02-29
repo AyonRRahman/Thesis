@@ -1,4 +1,12 @@
-from dpt import DepthAnything
+import sys
+import os
+
+script_path = os.path.abspath(__file__)
+project_folder = os.path.abspath(os.path.join(os.path.dirname(script_path), '../..'))
+
+sys.path[0] = project_folder
+
+from models.DepthAnything.dpt import DepthAnything
 
 from path import Path 
 from tqdm import tqdm
@@ -155,12 +163,16 @@ class DepthAnythingSFM(nn.Module):
         print('Total Depth Anything parameters: {:.2f}M'.format(self.total_params / 1e6)) 
         self.transform = Compose([Resize()])
         self._size = size
+        self.alpha = 10
+        self.beta = 0.01
 
     def forward(self, x):
         x = self.transform(x)
         depth = self.model(x)
-        depth = torch.tensor(255) - depth
+        depth = (depth - depth.min()) / (depth.max() - depth.min())
+        depth = torch.tensor(255)*(torch.tensor(1)-depth)
         depth = tv_transform.functional.resize(depth, self._size)
+        # depth = self.alpha*depth + self.beta
 
         return depth
     

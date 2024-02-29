@@ -1,10 +1,17 @@
+import sys
+import os
+script_path = os.path.abspath(__file__)
+project_folder = os.path.abspath(os.path.join(os.path.dirname(script_path), '../..'))
+
+
+
 import argparse
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from huggingface_hub import PyTorchModelHubMixin, hf_hub_download
 
-from blocks import FeatureFusionBlock, _make_scratch
+from models.DepthAnything.blocks import FeatureFusionBlock, _make_scratch
 
 
 def _make_fusion_block(features, use_bn, size = None):
