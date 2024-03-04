@@ -38,9 +38,6 @@ def compute_depth_errors(gt, pred, use_mask=True):
         mask = np.array(gt, dtype=bool).astype(int)
         pred = (pred*mask) #element wise multiply the mask
 
-   
-
-
     thresh = np.maximum((gt / pred), (pred / gt))
     a1 = (thresh < 1.25).mean()
     a2 = (thresh < 1.25 ** 2).mean()
@@ -48,8 +45,6 @@ def compute_depth_errors(gt, pred, use_mask=True):
 
     rmse = (gt - pred) ** 2
     rmse = np.sqrt(rmse.mean())
-    
-
     
     #flatten and get the non zeros to calculate rest to avoid zero division
     flat_gt = gt.flatten()
@@ -66,7 +61,6 @@ def compute_depth_errors(gt, pred, use_mask=True):
     abs_rel = np.mean(np.abs(gt - pred) / gt)
     sq_rel = np.mean(((gt - pred) ** 2) / gt)
 
-    
     return abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3
 
 def load_tensor_image(filename):
@@ -106,7 +100,7 @@ def main():
     if args.depth_model == 'dispnet':
         model = DispNetS()
         total_param = sum(param.numel() for param in model.parameters())
-        print(f"total disp net parameter {total_param}")
+        print(f"total disp net parameter {total_param/1e6}M")
     
     elif args.depth_model == 'dpts':
         model = DepthAnythingSFM(encoder='vits')
@@ -149,6 +143,9 @@ def main():
         
         if args.depth_model == 'dispnet':
             pred_depth = 1/pred_depth
+        else:
+            pred_depth = 1/pred_depth
+
 
         if i==0:
             print('calculating model avg inference time')
@@ -181,8 +178,6 @@ def main():
         a2_tot += a2
         a3_tot += a3
         
-        
-
     return abs_rel_tot/len(image_list), sq_rel_tot/len(image_list), rmse_tot/len(image_list), rmse_log_tot/len(image_list), a1_tot/len(image_list), a2_tot/len(image_list), a3_tot/len(image_list)
 
 if __name__=='__main__':

@@ -253,6 +253,9 @@ def mean_squared_error_depth(predicted: np.ndarray, gt: np.ndarray, normalize=Tr
         # print(scale)
         predicted = predicted*scale
 
+        mask = np.array(gt, dtype=bool).astype(int)
+        predicted = (predicted*mask) #element wise multiply the mask
+
 
     mse = ((gt-predicted)**2).mean()
     return float(mse), float(scale)

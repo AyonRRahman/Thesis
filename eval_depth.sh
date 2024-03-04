@@ -8,6 +8,7 @@
 #SBATCH --gres=gpu
 #SBATCG --mem-per-gpu=24G
 
+which python
 
 echo $HOSTNAME
 nvidia-smi 
@@ -22,5 +23,8 @@ echo $HOSTNAME
 # echo "dptb"
 # python eval_depth.py --scale --depth_model dptb
 
-echo "do_not_optimize_do_not_optimize_s0.5_c1_sl3"
-python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/do_not_optimize_s0.5_c1_sl3/dispnet_model_best.pth.tar
+echo "disp_net_with_mask_comparison"
+python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/compare_new_train_with_mask/dispnet_model_best.pth.tar
+
+echo "disp_net_without_mask_comparison"
+python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/compare_new_train_without_mask/dispnet_model_best.pth.tar

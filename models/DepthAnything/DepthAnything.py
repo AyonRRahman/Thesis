@@ -155,7 +155,7 @@ class Resize(object):
         return sample
     
 class DepthAnythingSFM(nn.Module):
-    def __init__(self, encoder='vitl', size=(256, 464)):
+    def __init__(self, encoder='vits', size=(256, 464)):
         assert encoder in ['vits', 'vitb', 'vitl']
         super(DepthAnythingSFM, self).__init__()
         self.model = DepthAnything.from_pretrained('LiheYoung/depth_anything_{}14'.format(encoder)).train()
@@ -165,16 +165,21 @@ class DepthAnythingSFM(nn.Module):
         self._size = size
         self.alpha = 10
         self.beta = 0.01
-
+        self.output = tv_transform.Resize(size)
     def forward(self, x):
         x = self.transform(x)
         depth = self.model(x)
-        depth = (depth - depth.min()) / (depth.max() - depth.min())
-        depth = torch.tensor(255)*(torch.tensor(1)-depth)
-        depth = tv_transform.functional.resize(depth, self._size)
-        # depth = self.alpha*depth + self.beta
+        print(f"min {depth.min()}, max{depth.max()}")
+        # depth = depth+1e-7
+        depth = (depth - depth.min()) / ((depth.max() - depth.min())+1e-7)
 
-        return depth
+        depth = torch.tensor(1)-depth
+        print(depth.shape)
+        depth = self.output(depth)
+        
+        # print(depth.shape)
+
+        return [depth]
     
 
 if __name__=='__main__':
