@@ -168,9 +168,9 @@ class DPT_DINOv2(nn.Module):
 
         depth = self.depth_head(features, patch_h, patch_w)
         depth = F.interpolate(depth, size=(h, w), mode="bilinear", align_corners=True)
-        depth = F.relu(depth)
+        depth = F.sigmoid(depth)
 
-        return depth.squeeze(1)
+        return depth
 
 
 class DepthAnything(DPT_DINOv2, PyTorchModelHubMixin):

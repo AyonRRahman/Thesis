@@ -29,7 +29,7 @@ parser = argparse.ArgumentParser(description='Structure from Motion Learner trai
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
 parser.add_argument('data', metavar='DIR', help='path to dataset')
-parser.add_argument('mask_dir', metavar='DIR', help='Path to the masks', default='./data/scaled_and_cropped_mask')
+parser.add_argument('mask_dir',metavar='DIR', help='Path to the masks', default='./data/scaled_and_cropped_mask')
 # parser.add_argument('--folder-type', type=str, choices=['sequence'], default='sequence', help='the dataset dype to train')
 parser.add_argument('--sequence-length', type=int, metavar='N', help='sequence length for training', default=3)
 parser.add_argument('-j', '--workers', default=2, type=int, metavar='N', help='number of data loading workers')
@@ -73,7 +73,7 @@ parser.add_argument('--train_until_converge', action='store_true', help='train t
 parser.add_argument('--use_mask_for_train', action='store_true',
             help='new dataloader with mask will be used and the mask will be used to calculate the loss')
 
-
+parser.add_argument("--depth_model", default="dispnet", help="model to select. options: dpts, dptl, dptb, dispnet", type=str)
 
 val_depth_iter = 0
 best_error = -1
@@ -293,7 +293,14 @@ def main():
     
     #custom 
     from models.SFM.DispNetS import DispNetS
-    disp_net = DispNetS().to(device)
+    from models.DepthAnything.DepthAnything import DepthAnythingSFM
+    
+    if args.depth_model=='dispnet':
+        disp_net = DispNetS().to(device)
+    elif args.depth_model=='dpts':
+        print('loading DepthAnything model')
+        disp_net = DepthAnythingSFM(encoder='vits').to(device)
+
     from models.SC_SFM.PoseResNet import PoseResNet
     pose_net = PoseResNet(18, args.with_pretrain).to(device)
     epoch_skip = 0
@@ -494,7 +501,11 @@ def train(args, train_loader, disp_net, pose_net, optimizer, epoch_size, logger,
         intrinsics = intrinsics.to(device)
 
         # compute output
-        tgt_depth, ref_depths = compute_depth(disp_net, tgt_img, ref_imgs)
+        tgt_depth, ref_depths = compute_depth(disp_net, tgt_img, ref_imgs, args)
+        # print(f'depth output shapes {tgt_depth[0].shape}')
+        # print(tgt_depth.shape)
+        # print(ref_depths[0].shape)
+
         poses, poses_inv = compute_pose_with_inv(pose_net, tgt_img, ref_imgs)
 
         loss_1, loss_3 = compute_photo_and_geometry_loss(tgt_img, ref_imgs, intrinsics, tgt_depth, ref_depths,
@@ -578,7 +589,7 @@ def train_with_mask(args, train_loader, disp_net, pose_net, optimizer, epoch_siz
         intrinsics = intrinsics.to(device)
 
         # compute output
-        tgt_depth, ref_depths = compute_depth(disp_net, tgt_img, ref_imgs)
+        tgt_depth, ref_depths = compute_depth(disp_net, tgt_img, ref_imgs, args)
         poses, poses_inv = compute_pose_with_inv(pose_net, tgt_img, ref_imgs)
 
         loss_1, loss_3 = compute_photo_and_geometry_loss(tgt_img, ref_imgs, intrinsics, tgt_depth, ref_depths,
@@ -672,7 +683,7 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
                 depth_file_name = Path(args.depth_directory)/current_image[0:4]/'depth_images'/'depth_'+current_image
                 #try to use the tensor2array function later for depth
                 print('------------')
-                print(f'current image name {(val_set.samples[i])['tgt'].split('/')[-1]}')
+                # print(f'current image name {(val_set.samples[i])['tgt'].split('/')[-1]}')
                 print(f"depth_file_name {depth_file_name}")
                 print('------------')
                 
@@ -764,7 +775,7 @@ def validate_without_gt_with_mask(args, val_loader, disp_net, pose_net, epoch, l
                 depth_file_name = Path(args.depth_directory)/current_image[0:4]/'depth_images'/'depth_'+current_image
                 #try to use the tensor2array function later for depth
                 print('------------')
-                print(f'current image name {(val_set.samples[i])['tgt'].split('/')[-1]}')
+                # print(f'current image name {(val_set.samples[i])['tgt'].split('/')[-1]}')
                 print(f"depth_file_name {depth_file_name}")
                 print('------------')
                 
@@ -860,12 +871,18 @@ def compute_pose_with_inv(pose_net, tgt_img, ref_imgs):
 
     return poses, poses_inv
 
-def compute_depth(disp_net, tgt_img, ref_imgs):
-    tgt_depth = [1/disp for disp in disp_net(tgt_img)]
+def compute_depth(disp_net, tgt_img, ref_imgs, args):
+    # print(f"tgt_depth shape {disp_net(tgt_img).shape}")
+    if args.depth_model=='dispnet':
+        tgt_depth = [1/disp for disp in disp_net(tgt_img)]
+    elif args.depth_model=='dpts':
+        tgt_depth = [disp for disp in disp_net(tgt_img)]
+
+    # print(len(tgt_depth))
 
     ref_depths = []
     for ref_img in ref_imgs:
-        ref_depth = [1/disp for disp in disp_net(ref_img)]
+        ref_depth = [disp for disp in disp_net(ref_img)]
         ref_depths.append(ref_depth)
 
     return tgt_depth, ref_depths
