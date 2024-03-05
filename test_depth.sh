@@ -31,6 +31,7 @@ echo $HOSTNAME
 # --dataset-dir /mundus/mrahman527/Thesis/data/Eiffel-Tower_ready_Downscaled/ \
 # --name equal_wrights_b16_sl3_lr1e-4 \
 
+echo "equal weights"
 python test_depth.py --pretrained_dir saved_models/equal_wrights_b16_sl3_lr1e-4 \
 --dataset-dir /mundus/mrahman527/Thesis/data/Eiffel-Tower_ready_Downscaled/ \
 --name equal_wrights_b16_sl3_lr1e-4 \

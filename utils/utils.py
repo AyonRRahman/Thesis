@@ -254,7 +254,7 @@ def export_trajectory(file, output_dir = 'data/Eiffel-Tower/2015/'):
     '''
     assert os.path.exists(file)
     gt_df = Eiffel_save_navigation_data(file).sort_index()
-
+    # print(gt_df.head())
     poses = np.zeros((1,12))
     # print(poses)
 
@@ -353,7 +353,9 @@ def get_trajectory(file):
 
 
 if __name__=='__main__':
-    image_path = Path('data/Eiffel-Tower_ready_Downscaled/2015')
-    depth_path = Path('data/Eiffel-Tower_depth_images/2015/depth_images')
-    # image_path = Path('depth_evaluation/equal_wrights_b16_sl3_lr1e-4/2015')
-    show_image_with_depth(image_path, depth_path, resize=True, save_video=False)
+    # image_path = Path('data/Eiffel-Tower_ready_Downscaled/2015')
+    # depth_path = Path('data/Eiffel-Tower_depth_images/2015/depth_images')
+    # # image_path = Path('depth_evaluation/equal_wrights_b16_sl3_lr1e-4/2015')
+    # show_image_with_depth(image_path, depth_path, resize=True, save_video=False)
+    # export_trajectory(file='/mundus/mrahman527/Thesis/data/Eiffel-Tower/2018/sfm/images.txt', output_dir = '/mundus/mrahman527/Thesis/data/Eiffel_tower_ready_small_set/2018')
+    pass

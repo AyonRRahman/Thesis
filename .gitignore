@@ -27,4 +27,4 @@ experiments.py
 /checkpoints_old/*
 experiment_with_depth_anything.ipynb
 data/Eiffel_tower_ready_small_set/*
-
+*.ipynb

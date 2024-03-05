@@ -410,7 +410,7 @@ def main():
         print(f'validating depth {epoch}')
         
         # if not args.use_mask_for_train:
-        mse = validate_depth(depth_val_loader, disp_net, training_writer)        
+        mse = validate_depth(depth_val_loader, disp_net, training_writer, args)        
         training_writer.add_scalar('mse depth', mse, epoch)
         
         # else:
@@ -670,11 +670,26 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
         intrinsics_inv = intrinsics_inv.to(device)
 
         # compute output
-        tgt_depth = [1 / disp_net(tgt_img)]
-        ref_depths = []
-        for ref_img in ref_imgs:
-            ref_depth = [1 / disp_net(ref_img)]
-            ref_depths.append(ref_depth)
+        if args.depth_model=='dispnet':
+            tgt_depth = [1/disp for disp in disp_net(tgt_img)]
+        elif args.depth_model=='dpts':
+            tgt_depth = [disp for disp in disp_net(tgt_img)]
+
+        if args.depth_model=='dispnet':
+            tgt_depth = [1 / disp_net(tgt_img)]
+            ref_depths = []
+            for ref_img in ref_imgs:
+                ref_depth = [1 / disp_net(ref_img)]
+                ref_depths.append(ref_depth)
+
+        elif args.depth_model=='dpts':
+            tgt_depth = [disp_net(tgt_img)]
+            ref_depths = []
+            for ref_img in ref_imgs:
+                ref_depth = [disp_net(ref_img)]
+                ref_depths.append(ref_depth)
+
+
 
         if log_outputs and i < len(output_writers):
             if epoch == 0:
@@ -836,19 +851,25 @@ def load_gt_depth(current_image):
     return depth_gt_gray
 
 @torch.no_grad()
-def validate_depth(depth_val_loader, disp_net, training_writer):
+def validate_depth(depth_val_loader, disp_net, training_writer, args):
     global device
     global val_set
     global val_depth_iter
     # switch to evaluate mode
     disp_net.eval()
     total_mse_loss = 0
-    # print(len(depth_val_loader))
+    
     for i, (tgt_img, ref_imgs, intrinsics, intrinsics_inv) in tqdm(enumerate(depth_val_loader)):
         tgt_img = tgt_img.to(device)
         # compute output
-        tgt_depth = 1 / disp_net(tgt_img)
-        predicted_depth = tgt_depth.squeeze().detach().cpu().numpy()
+        if args.depth_model=='dispnet':
+            tgt_depth = 1 / disp_net(tgt_img)
+            predicted_depth = tgt_depth.squeeze().detach().cpu().numpy()
+        
+        elif args.depth_model=='dpts':
+            tgt_depth = disp_net(tgt_img)
+            predicted_depth = tgt_depth.squeeze().detach().cpu().numpy()
+
         current_image = (val_set.samples[i])['tgt'].split('/')[-1]
         gt_depth = load_gt_depth(current_image)
 
@@ -875,15 +896,21 @@ def compute_depth(disp_net, tgt_img, ref_imgs, args):
     # print(f"tgt_depth shape {disp_net(tgt_img).shape}")
     if args.depth_model=='dispnet':
         tgt_depth = [1/disp for disp in disp_net(tgt_img)]
+        
+        ref_depths = []
+        for ref_img in ref_imgs:
+            ref_depth = [1/disp for disp in disp_net(ref_img)]
+            ref_depths.append(ref_depth)
+
     elif args.depth_model=='dpts':
         tgt_depth = [disp for disp in disp_net(tgt_img)]
 
     # print(len(tgt_depth))
 
-    ref_depths = []
-    for ref_img in ref_imgs:
-        ref_depth = [disp for disp in disp_net(ref_img)]
-        ref_depths.append(ref_depth)
+        ref_depths = []
+        for ref_img in ref_imgs:
+            ref_depth = [disp for disp in disp_net(ref_img)]
+            ref_depths.append(ref_depth)
 
     return tgt_depth, ref_depths
 

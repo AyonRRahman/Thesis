@@ -192,7 +192,7 @@ def find_ATE(pred:np.ndarray, gt:np.ndarray)->tuple():
 
     returns:
         Total_ATE(float): total sum of the distance between each pair 
-        Mean_ATE(float): mean ATE-> total_ate/m
+        Mean_ATE(float): mean ATE-> total_ate/frame
 
     '''
     assert gt.shape == pred.shape
@@ -201,8 +201,6 @@ def find_ATE(pred:np.ndarray, gt:np.ndarray)->tuple():
     Total_ATE = np.linalg.norm(diff, axis=1).sum()
     Mean_ATE = np.linalg.norm(diff, axis=1).mean()
     return (float(Total_ATE), float(Mean_ATE))
-
-
 
 def median_of_non_zero_values(arr):
     """
@@ -233,7 +231,6 @@ def mean_squared_error_depth(predicted: np.ndarray, gt: np.ndarray, normalize=Tr
     
     Returns:
         mse: mean squared error pixelwise
-
     '''
     assert predicted.shape == gt.shape 
     scale = None

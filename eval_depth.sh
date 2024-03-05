@@ -23,8 +23,12 @@ echo $HOSTNAME
 # echo "dptb"
 # python eval_depth.py --scale --depth_model dptb
 
-echo "disp_net_with_mask_comparison"
-python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/compare_new_train_with_mask/dispnet_model_best.pth.tar
+# echo "disp_net_with_mask_comparison"
+# python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/compare_new_train_with_mask/dispnet_model_best.pth.tar
 
-echo "disp_net_without_mask_comparison"
-python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/compare_new_train_without_mask/dispnet_model_best.pth.tar
+# echo "disp_net_without_mask_comparison"
+# python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/compare_new_train_without_mask/dispnet_model_best.pth.tar
+
+
+echo "equal weight"
+python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/equal_wrights_b16_sl3_lr1e-4/dispnet_model_best.pth.tar
