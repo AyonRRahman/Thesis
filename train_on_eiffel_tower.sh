@@ -6,7 +6,7 @@
 #SBATCH --error=depth_any_without_mask.err
 #SBATCH --mail-type=ALL
 #SBATCH --mail-user=raqibur.ayon@gmail.com
-#SBATCH --gres=gpu:a100-80:1 
+#SBATCH --gres=gpu:a100-80:1
 #SBATCH --mem-per-gpu=80G
 
 which python
@@ -15,7 +15,7 @@ echo $HOSTNAME
 nvidia-smi 
 echo $HOSTNAME
 
-python train_new.py data/Eiffel_tower_ready_small_set \
+python train_new.py data/Eiffel-Tower_ready_Downscaled_colmap \
 ./data/scaled_and_cropped_mask/ \
 --num-scales 1 \
 -b8 -s0.1 -c0.5 --sequence-length 3 \
@@ -29,4 +29,3 @@ python train_new.py data/Eiffel_tower_ready_small_set \
 --epochs 400 --learning-rate 1e-4 \
 --name depth_any_without_mask \
 --depth_model dpts
-

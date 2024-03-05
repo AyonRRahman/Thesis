@@ -20,7 +20,7 @@ import os
 import cv2
 import numpy as np
 from PIL import Image, ImageOps
-
+from utils.eval import align_trajectory, find_ATE
 
 parser = argparse.ArgumentParser(description='Script for getting odometry',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -115,13 +115,13 @@ def main():
         pose_mat = np.vstack([pose_mat, np.array([0, 0, 0, 1])])
         # print(pose_mat[3,0:3])
         # print(pose_mat[0:3, 0:3].T)
-        inverse_of_pose = np.vstack([np.hstack([pose_mat[0:3, 0:3].T, -(pose_mat[0:3, 0:3]@(pose_mat[3,0:3].reshape(3,1))) ]), np.array([0, 0, 0, 1])])
+        # inverse_of_pose = np.vstack([np.hstack([pose_mat[0:3, 0:3].T, -(pose_mat[0:3, 0:3]@(pose_mat[3,0:3].reshape(3,1))) ]), np.array([0, 0, 0, 1])])
 
         # print(inverse_of_pose - np.linalg.inv(pose_mat))
 
-        global_pose = global_pose @ inverse_of_pose
+        # global_pose = global_pose @ inverse_of_pose
         
-        # global_pose = global_pose @  np.linalg.inv(pose_mat)
+        global_pose = global_pose @  np.linalg.inv(pose_mat)
 
         poses.append(global_pose[0:3, :].reshape(1, 12))
 
@@ -135,6 +135,15 @@ def main():
         filename = output_dir/(args.sequence+"_best.txt")
 
     np.savetxt(filename, poses, delimiter=' ', fmt='%1.8e')
+
+    #calculating the ATE using umeyama alignment
+    predicted_pose_file = filename
+    gt_pose_file = f"data/Eiffel-Tower/{args.sequence}/gt_traj.txt"
+
+    transformed_pred, ult_gt = align_trajectory(predicted_pose_file, gt_pose_file)
+
+    print(f"total and mean ATE {find_ATE(transformed_pred, ult_gt)} m")
+
 
 
 if __name__ == '__main__':
