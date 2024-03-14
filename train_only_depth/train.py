@@ -1006,6 +1006,109 @@ def validate_train_depth(args, val_loader, disp_net, pose_net, epoch, logger, ou
 
 
 @torch.no_grad()
+def validate_train_both(args, val_loader, disp_net, pose_net, epoch, logger, output_writers):
+    global device
+    global val_set
+    global w1, w2, w3
+
+    batch_time = AverageMeter()
+    losses = AverageMeter(i=4, precision=4)
+    log_outputs = len(output_writers) > 0
+
+    # switch to evaluate mode
+    disp_net.eval()
+    pose_net.eval()
+
+    end = time.time()
+    logger.valid_bar.update(0)
+    for i,data_sample in enumerate(val_loader):
+        tgt_img = data_sample['tgt_img'].to(device)
+        ref_imgs = [img.to(device) for img in data_sample['ref_imgs']]
+        intrinsics = data_sample['intrinsics'].to(device)
+        intrinsics_inv = data_sample['inv_intrinsics'].to(device)
+        
+        # poses = [pose.to(device) for pose in data_sample['poses']]  #src_t_tgt
+        # poses_inv = [inv_pose.to(device) for inv_pose in data_sample['inv_poses']]
+
+        tgt_mask = data_sample['tgt_mask'].to(device)
+        ref_masks = [mask.to(device) for mask in data_sample['ref_masks']]
+        
+        # compute output
+        # tgt_depth, ref_depths = compute_depth(disp_net, tgt_img, ref_imgs, args)
+        
+        poses, poses_inv = compute_pose_with_inv(pose_net, tgt_img, ref_imgs)
+        
+        tgt_depth = [1 / disp_net(tgt_img)]
+        ref_depths = []
+        for ref_img in ref_imgs:
+            ref_depth = [1 / disp_net(ref_img)]
+            ref_depths.append(ref_depth)
+
+        if log_outputs and i < len(output_writers):
+            if epoch == 0:
+                output_writers[i].add_image('val Input', tensor2array(tgt_img[0]), 0)
+                current_image = (val_set.samples[i])['tgt'].split('/')[-1]
+                depth_file_name = Path(args.depth_dir)/current_image[0:4]/'depth_'+current_image
+                #try to use the tensor2array function later for depth
+                print('------------')
+                # print(f'current image name {(val_set.samples[i])['tgt'].split('/')[-1]}')
+                print(f"depth_file_name {depth_file_name}")
+                print('------------')
+                
+                depth_image = load_as_float(depth_file_name)
+                depth_image = np.transpose(depth_image, (2, 0, 1))
+                print(depth_image.shape)
+                depth_image = depth_image/depth_image.max()
+                output_writers[i].add_image('gt depth', tensor2array(torch.tensor(depth_image), max_value=None, colormap='magma'), 0)
+                
+
+            output_writers[i].add_image('val Dispnet Output Normalized',
+                                        tensor2array(1/tgt_depth[0][0], max_value=None, colormap='magma'),
+                                        epoch)
+            output_writers[i].add_image('val Depth Output',
+                                        tensor2array(tgt_depth[0][0], max_value=None, colormap='magma'),
+                                        epoch)
+
+        # poses, poses_inv = compute_pose_with_inv(pose_net, tgt_img, ref_imgs)
+
+        if args.use_gt_mask:
+            loss_1, loss_3 = compute_photo_and_geometry_loss(tgt_img, ref_imgs, intrinsics, tgt_depth, ref_depths,
+                                                         poses, poses_inv, args.num_scales, args.with_ssim,
+                                                         args.with_mask, False, args.padding_mode, tgt_mask, ref_masks)
+        else:
+            loss_1, loss_3 = compute_photo_and_geometry_loss(tgt_img, ref_imgs, intrinsics, tgt_depth, ref_depths,
+                                                         poses, poses_inv, args.num_scales, args.with_ssim,
+                                                         args.with_mask, False, args.padding_mode)
+            
+
+        loss_2 = compute_smooth_loss(tgt_depth, tgt_img, ref_depths, ref_imgs)
+
+        loss_1 = loss_1.item()
+        loss_2 = loss_2.item()
+        loss_3 = loss_3.item()
+
+        
+        #making sure to stop calculating the weights gradients.
+        with torch.no_grad():
+            loss = w1*loss_1 + w2*loss_2 + w3*loss_3
+            
+        # loss = loss_1
+        losses.update([loss, loss_1, loss_2, loss_3])
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+        logger.valid_bar.update(i+1)
+        if i % args.print_freq == 0:
+            logger.valid_writer.write('valid: Time {} Loss {}'.format(batch_time, losses))
+
+        
+    logger.valid_bar.update(len(val_loader))
+    return losses.avg, ['Total loss', 'Photo loss', 'Smooth loss', 'Consistency loss']
+
+
+
+@torch.no_grad()
 def validate_depth(depth_val_loader, disp_net, training_writer, args):
     global device
     global val_set
