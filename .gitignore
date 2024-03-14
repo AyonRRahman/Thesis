@@ -28,3 +28,9 @@ experiments.py
 experiment_with_depth_anything.ipynb
 data/Eiffel_tower_ready_small_set/*
 *.ipynb
+
+*.pth.tar
+/train_only_depth/checkpoints_experiment/*
+/checkpoints_experiment/*
+/checkpoints_old/*
+/train_only_depth/saved_models_experiment/*
