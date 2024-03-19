@@ -13,9 +13,11 @@ import csv
 from tqdm import tqdm
 #torch related imports
 import torch
+import torch.nn as nn
 import torch.backends.cudnn as cudnn
 import torch.optim
 import torch.utils.data
+
 
 import numpy as np
 from tensorboardX import SummaryWriter
@@ -51,7 +53,7 @@ parser.add_argument('--lr', '--learning-rate', default=1e-4, type=float, metavar
 parser.add_argument('--momentum', default=0.9, type=float, metavar='M', help='momentum for sgd, alpha parameter for adam')
 parser.add_argument('--beta', default=0.999, type=float, metavar='M', help='beta parameters for adam')
 parser.add_argument('--weight-decay', '--wd', default=0, type=float, metavar='W', help='weight decay')
-parser.add_argument('--print-freq', default=10, type=int, metavar='N', help='print frequency')
+parser.add_argument('--print-freq', default=5, type=int, metavar='N', help='print frequency')
 parser.add_argument('--seed', default=0, type=int, help='seed for random functions, and network initialization')
 parser.add_argument('--log-summary', default='progress_log_summary.csv', metavar='PATH', help='csv where to save per-epoch train and valid stats')
 parser.add_argument('--log-full', default='progress_log_full.csv', metavar='PATH', help='csv where to save per-gradient descent train stats')
@@ -70,7 +72,7 @@ parser.add_argument('--pretrained-pose', dest='pretrained_pose', default=None, m
 
 parser.add_argument('--image_extention', type=str, default='png', help='image extention')
 parser.add_argument('--name', dest='name',default='experiment', type=str,
-                    #  required=True, 
+                     required=True, 
                      help='name of the experiment, checkpoints are stored in checpoints/name')
 parser.add_argument('--padding-mode', type=str, choices=['zeros', 'border'], default='zeros',
                     help='padding mode for image warping : this is important for photometric differenciation when going outside target image.'
@@ -96,6 +98,10 @@ parser.add_argument('--use_gt_pose', action='store_true',
 parser.add_argument('--train', default="both", choices=['depth', 'pose','both'], 
                     help='depth: train only depth network  with gt pose, pose: train only pose with gt depth', type=str)
 
+parser.add_argument('--manual_weight', action='store_true',
+            help='manual weight initialize')
+
+
 #define global variables
 val_depth_iter = 0
 best_error = -1
@@ -104,18 +110,40 @@ n_iter_without_best = 0
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 torch.autograd.set_detect_anomaly(True)
 
+def log_gradients_in_model(model, writer, step):
+    for name, param in model.named_parameters():
+        if param.grad is not None:
+            # Log the gradient as a histogram
+            writer.add_histogram(f"gradients/{name}", param.grad.data, step)
+        else:
+            print(f"found grad None for tag={tag}, value={value}")
+
+
+# def init_weights(self):
+#     for m in self.modules():
+#         if isinstance(m, nn.Conv2d) or isinstance(m, nn.ConvTranspose2d):
+#             xavier_uniform_(m.weight)
+#             if m.bias is not None:
+#                 zeros_(m.bias)
+def init_weights(m):
+    # if isinstance(m, nn.Linear):
+    try:
+        torch.nn.init.xavier_uniform(m.weight)
+        m.bias.data.fill_(0.01)
+    except Exception as e: 
+        print(e)
+
 #print gpu information if gpu is available
-# if torch.cuda.is_available():
-#     #print gpu information
-#     num_gpus = torch.cuda.device_count()
+if torch.cuda.is_available():
+    #print gpu information
+    num_gpus = torch.cuda.device_count()
 
-#     # Loop through each GPU and print its properties
-#     for gpu_id in range(num_gpus):
-#         gpu_props = torch.cuda.get_device_properties(gpu_id)
-#         print(f"GPU {gpu_id}:")
-#         print(f"  Name: {gpu_props.name}")
-#         print(f"  Total Memory: {gpu_props.total_memory / 1024**3:.2f} GB")
-
+    # Loop through each GPU and print its properties
+    for gpu_id in range(num_gpus):
+        gpu_props = torch.cuda.get_device_properties(gpu_id)
+        print(f"GPU {gpu_id}:")
+        print(f"  Name: {gpu_props.name}")
+        print(f"  Total Memory: {gpu_props.total_memory / 1024**3:.2f} GB")
 
 def main():
     global best_error, n_iter, device, n_iter_without_best
@@ -260,7 +288,7 @@ def main():
     
     #Data Loader
     train_loader = torch.utils.data.DataLoader(
-        train_set, batch_size=args.batch_size, shuffle=True,
+        train_set, batch_size=args.batch_size, shuffle=False,
         num_workers=args.workers, pin_memory=True)
 
     val_loader = torch.utils.data.DataLoader(
@@ -311,6 +339,14 @@ def main():
         if not os.path.exists(args.pretrained_pose):
             print(f'pose net best saved model not found in the save directory {args.pretrained_pose}. starting traiing from scratch')
             args.pretrained_pose = None
+    
+    
+    if args.manual_weight:
+        print("====="*10)
+        print('manually initializing weights for dispnet')
+        disp_net.apply(init_weights)
+        print("====="*10)
+
     
     #load the pretrained models
     if args.pretrained_disp:
@@ -378,7 +414,10 @@ def main():
     logger = TermLogger(n_epochs=args.epochs, train_size=min(len(train_loader), args.epoch_size), valid_size=len(val_loader))
     logger.epoch_bar.start()
 
-
+    # print('-----'*10)
+    # print('named parameters for disp net')
+    # print(list(disp_net.named_parameters()))
+    # print('-----'*10)
     for epoch in range(args.epochs):
         logger.epoch_bar.update(epoch)
         
@@ -391,7 +430,7 @@ def main():
         # print(args)
         if args.train=='depth':
             train_loss = train_depth(args, train_loader, disp_net,pose_net, optimizer, args.epoch_size, logger, training_writer)
-        
+
         elif args.train=='pose':
             train_loss = train_pose(args, train_loader, pose_net, optimizer, args.epoch_size, logger, training_writer)
         
@@ -449,7 +488,7 @@ def main():
             n_iter_without_best=0
         else:
             n_iter_without_best+=1
-            if n_iter_without_best==80:
+            if n_iter_without_best==400:
                 print(f"model is not converging for last 80 epoch. stoping at {epoch}")
                 break
         best_error = min(best_error, decisive_error)
@@ -613,8 +652,13 @@ def train_depth(args, train_loader, disp_net, pose_net, optimizer, epoch_size, l
 
     
     for i,data_sample in enumerate(train_loader):
-        log_losses = i > 0 and n_iter % args.print_freq == 0
         
+        log_losses = i > 0 and n_iter % args.print_freq == 0
+        # if i==1:
+        #     pass
+        # else:
+        #     log_losses = True
+
         # measure data loading time
         data_time.update(time.time() - end)
         
@@ -667,6 +711,10 @@ def train_depth(args, train_loader, disp_net, pose_net, optimizer, epoch_size, l
         loss.backward()
         optimizer.step()
 
+        #log gradients
+        log_gradients_in_model(disp_net, train_writer, n_iter)
+
+
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
@@ -691,7 +739,9 @@ def train_depth(args, train_loader, disp_net, pose_net, optimizer, epoch_size, l
             memory_cached = torch.cuda.memory_cached()
             print(f"Current GPU memory cached: {memory_cached / 1024**3:.2f} GB")
             print(f"Max GPU memory used: {torch.cuda.max_memory_allocated()/1024**3} GB")
-        
+
+
+
     return losses.avg[0]
 
 def train_pose(args, train_loader, pose_net, optimizer, epoch_size, logger, train_writer):
@@ -912,6 +962,7 @@ def validate_train_depth(args, val_loader, disp_net, pose_net, epoch, logger, ou
     batch_time = AverageMeter()
     losses = AverageMeter(i=4, precision=4)
     log_outputs = len(output_writers) > 0
+    print(f'len of output writers {len(output_writers)}')
 
     # switch to evaluate mode
     disp_net.eval()
@@ -920,6 +971,8 @@ def validate_train_depth(args, val_loader, disp_net, pose_net, epoch, logger, ou
     end = time.time()
     logger.valid_bar.update(0)
     for i,data_sample in enumerate(val_loader):
+        # if i==1:
+        #     break
         tgt_img = data_sample['tgt_img'].to(device)
         ref_imgs = [img.to(device) for img in data_sample['ref_imgs']]
         intrinsics = data_sample['intrinsics'].to(device)
@@ -1000,7 +1053,9 @@ def validate_train_depth(args, val_loader, disp_net, pose_net, epoch, logger, ou
         if i % args.print_freq == 0:
             logger.valid_writer.write('valid: Time {} Loss {}'.format(batch_time, losses))
 
-        
+        if i>=(args.epoch_size-1):
+            break
+
     logger.valid_bar.update(len(val_loader))
     return losses.avg, ['Total loss', 'Photo loss', 'Smooth loss', 'Consistency loss']
 
