@@ -12,6 +12,8 @@ import cv2
 
 from models.SFM.DispNetS import DispNetS
 from models.DepthAnything.DepthAnything import DepthAnythingSFM
+from train_only_depth.udepth_model.udepth import UDepth_SFM
+
 from utils.eval import median_of_non_zero_values
 
 ################### Options ######################
@@ -19,7 +21,7 @@ parser = argparse.ArgumentParser(description="Evaluate Depth")
 parser.add_argument("--gt_depth", default='data/scaled_and_cropped_depth/2015', help="gt depth dir", type=str)
 parser.add_argument("--img_dir", default='data/Eiffel-Tower_ready_Downscaled_colmap/2015',help="image directory for reading image", type=str)
 parser.add_argument("--scale", action='store_true', help="Will correct the scale using Median")
-parser.add_argument("--depth_model", default="dpts", help="model to select. options: dpts, dptl, dptb, dispnet", type=str)
+parser.add_argument("--depth_model", default="dpts", help="model to select. options: dpts, udepth, dispnet", type=str)
 parser.add_argument("--saved_model", default=None, type=str)
 ######################################################
 
@@ -94,7 +96,7 @@ def main():
     assert len(image_list)==len(depth_list)
 
     #check correct model name given:
-    assert args.depth_model in ['dpts', 'dptl', 'dptb', 'dispnet'], "correct model name not given"
+    assert args.depth_model in ['dpts', 'dptl', 'dptb', 'dispnet','udepth'], "correct model name not given"
 
     #initialize the models
     if args.depth_model == 'dispnet':
@@ -108,7 +110,9 @@ def main():
         model = DepthAnythingSFM(encoder='vitl')
     elif args.depth_model == 'dptb':
         model = DepthAnythingSFM(encoder='vitb')
-        
+    elif args.depth_model=='udepth':
+        model = UDepth_SFM(True)
+
     model.to(device)
     #load saved model
     if args.saved_model is not None:
@@ -116,8 +120,8 @@ def main():
         print(f"loading {saved_model_path}")
         weights = torch.load(saved_model_path, map_location=device)
         
-        if 'epoch' in weights:
-            print(f'loading model from epoch{weights['epoch']}')
+        # if 'epoch' in weights:
+        #     print(f'loading model from epoch{weights['epoch']}')
 
         model.load_state_dict(weights['state_dict'], strict=False)
         model.eval()
@@ -136,15 +140,18 @@ def main():
     for i,(image, depth) in tqdm(enumerate(zip(image_list, depth_list))):
         
         img = load_tensor_image(image).to(device)
+        
         gt_depth = load_tensor_image(depth).to(device)
         gt_depth = load_gt_depth(depth)
-        
-        pred_depth = model(img).cpu().squeeze().detach().numpy()
-        
+        if args.depth_model == 'dispnet':
+            pred_depth = model(img).cpu().squeeze().detach().numpy()
+        else:
+            pred_depth = model(img)[0].cpu().squeeze().detach().numpy()
+
         if args.depth_model == 'dispnet':
             pred_depth = 1/pred_depth
         else:
-            pred_depth = 1/pred_depth
+            pred_depth = pred_depth
 
 
         if i==0:

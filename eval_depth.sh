@@ -30,5 +30,8 @@ echo $HOSTNAME
 # python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/compare_new_train_without_mask/dispnet_model_best.pth.tar
 
 
-echo "equal weight"
-python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/equal_wrights_b16_sl3_lr1e-4/dispnet_model_best.pth.tar
+# echo "equal weight"
+# python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/equal_wrights_b16_sl3_lr1e-4/dispnet_model_best.pth.tar
+
+#udepth
+python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_pretrained2/dispnet_model_best.pth.tar

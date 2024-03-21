@@ -116,7 +116,7 @@ def log_gradients_in_model(model, writer, step):
             # Log the gradient as a histogram
             writer.add_histogram(f"gradients/{name}", param.grad.data, step)
         else:
-            print(f"found grad None for tag={tag}, value={value}")
+            print(f"found grad None for tag={name}")
 
 
 # def init_weights(self):
@@ -129,7 +129,9 @@ def init_weights(m):
     # if isinstance(m, nn.Linear):
     try:
         torch.nn.init.xavier_uniform(m.weight)
-        m.bias.data.fill_(0.01)
+        if m.bias is not None:
+            m.bias.data.fill_(0.01)
+            
     except Exception as e: 
         print(e)
 
@@ -309,12 +311,15 @@ def main():
     from models.SC_SFM.PoseResNet import PoseResNet 
     from models.SFM.DispNetS import DispNetS
     from models.DepthAnything.DepthAnything import DepthAnythingSFM
+    from train_only_depth.udepth_model.udepth import UDepth, UDepth_SFM
 
     if args.depth_model == "dispnet":
         disp_net = DispNetS().to(device)
 
     elif args.depth_model =="dpts":
-        disp_net = DepthAnythingSFM(encoder='vits').to(device)
+        # disp_net = DepthAnythingSFM(encoder='vits').to(device)
+        disp_net = UDepth_SFM(load_pretrained=True)
+
 
     pose_net = PoseResNet(18, args.with_pretrain).to(device)
 
@@ -488,7 +493,7 @@ def main():
             n_iter_without_best=0
         else:
             n_iter_without_best+=1
-            if n_iter_without_best==400:
+            if n_iter_without_best==80:
                 print(f"model is not converging for last 80 epoch. stoping at {epoch}")
                 break
         best_error = min(best_error, decisive_error)
