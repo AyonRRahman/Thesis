@@ -5,15 +5,7 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
-import os, sys
-#setting the path to the project root for facillitating importing
-script_path = os.path.abspath(__file__)
-project_folder = os.path.abspath(os.path.join(os.path.dirname(script_path), '../..'))
-# print(project_folder)
-sys.path[0] = project_folder
-
-from models.Udepth.miniViT import mViT
+from .miniViT import mViT
 
 
 class UpSample(nn.Sequential):
@@ -53,7 +45,6 @@ class Decoder(nn.Module):
         x_d4 = self.up3(x_d3, x_block2)
         x_d5 = self.up4(x_d4, x_block1)
         x_d6 = self.up5(x_d5, x_block0)
-        
         return x_d6
 
 class Encoder(nn.Module):
@@ -92,7 +83,6 @@ class UDepth(nn.Module):
 
     def forward(self, x, **kwargs):
         unet_out = self.decoder(self.encoder(x))
-        # print(unet_out.shape)
         bin_widths_normed, range_attention_maps = self.adaptive_bins_layer(unet_out)
 
         out = self.conv_out(range_attention_maps)
@@ -133,15 +123,16 @@ class UDepth(nn.Module):
         print('Done.')
         return m
 
+
 class UDepth_SFM(nn.Module):
     def __init__(self, load_pretrained=False):
         super(UDepth_SFM, self).__init__()
         self.model = UDepth.build(n_bins=80, min_val=0.001, max_val=1, norm="linear")
         if load_pretrained:
-            weights = torch.load('models/Udepth/model_RGB.pth', map_location=torch.device('cpu'))
+            weights = torch.load('/mundus/mrahman527/Thesis/train_only_depth/model_RGB.pth', map_location=torch.device('cpu'))
 
             self.model.load_state_dict(weights)
-
+            print('pretrained model loaded')
         self.upsample = nn.Upsample(scale_factor=2, mode='nearest')
 
     def forward(self, x):
@@ -151,48 +142,7 @@ class UDepth_SFM(nn.Module):
 
 
 if __name__ == '__main__':
-    import matplotlib.pyplot as plt
-    import numpy as np
-
-    
-    x = torch.rand(2, 3, 256, 464)
-    
-    model = UDepth_SFM(load_pretrained=False)
-    pred = model(x)
-    print(pred[0].shape)
-    # model = UDepth_SFM(load_pretrained=True)
-    # bins, pred = model(x)
-    # print(bins.shape, pred.shape)
-    # # plt.imshow(pred[0][0].detach().cpu().numpy())
-    # plt.show()
-    
-    # from datasets.sequence_folders import SequenceFolder
-    # import custom_transforms
-
-    # normalize = custom_transforms.Normalize(mean=[0.5, 0.5, 0.5],
-    #                                             std=[0.5, 0.5, 0.5])
-
-    # transform = custom_transforms.Compose([custom_transforms.ArrayToTensor()])
-    # dataset = SequenceFolder('data/Eiffel_tower_ready_small_set', transform=transform)
-    # import torch.utils.data
-    # train_loader = torch.utils.data.DataLoader(
-    #         dataset, batch_size=1, shuffle=False,
-    #         num_workers=1, pin_memory=True)
-
-    # for i, (tgt_img, ref_imgs, intrinsics, intrinsics_inv) in enumerate(train_loader):
-    #     print(tgt_img.shape)
-    #     _, tgt_depth = model(tgt_img) 
-    #     print(tgt_depth.shape)
-    #     break
-
-    # # print(np.moveaxis(tgt_img.detach().cpu().numpy(), 1, 3).shape)
-    # # print(tgt_img.max())
-    # # plt.imshow(np.moveaxis(tgt_img.detach().cpu().numpy(), 1, 3)[0].astype(np.float32)*255)
-    # # # plt.show()
-    # # import matplotlib
-    # # matplotlib.use('Agg')
-    
-    # plt.imshow(tgt_depth.detach().cpu().numpy()[0][0])
-    # # plt.imwrite('a.png')
-    # plt.show()
-    # pass
+    model = UDepth.build(100)
+    x = torch.rand(2, 3, 480, 640)
+    bins, pred = model(x)
+    print(bins.shape, pred.shape)

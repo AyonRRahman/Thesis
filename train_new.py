@@ -294,12 +294,15 @@ def main():
     #custom 
     from models.SFM.DispNetS import DispNetS
     from models.DepthAnything.DepthAnything import DepthAnythingSFM
-    
+    # from models.Udepth.udepth import UDepth_SFM
+    from models.udepth_model.udepth import UDepth_SFM
     if args.depth_model=='dispnet':
         disp_net = DispNetS().to(device)
     elif args.depth_model=='dpts':
-        print('loading DepthAnything model')
-        disp_net = DepthAnythingSFM(encoder='vits').to(device)
+        # print('loading DepthAnything model')
+        # disp_net = DepthAnythingSFM(encoder='vits').to(device)
+        print('loading udepth')
+        disp_net = UDepth_SFM(True)
 
     from models.SC_SFM.PoseResNet import PoseResNet
     pose_net = PoseResNet(18, args.with_pretrain).to(device)
@@ -668,7 +671,8 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
         ref_imgs = [img.to(device) for img in ref_imgs]
         intrinsics = intrinsics.to(device)
         intrinsics_inv = intrinsics_inv.to(device)
-
+        # if i==1:
+        #     break
         # compute output
         if args.depth_model=='dispnet':
             tgt_depth = [1/disp for disp in disp_net(tgt_img)]
@@ -677,16 +681,21 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
 
         if args.depth_model=='dispnet':
             tgt_depth = [1 / disp_net(tgt_img)]
+            # print('validating in dispnet')
+            # print(tgt_depth[0][0].shape)
             ref_depths = []
             for ref_img in ref_imgs:
                 ref_depth = [1 / disp_net(ref_img)]
                 ref_depths.append(ref_depth)
+            
+            # print(ref_depths[0][0].shape)
 
         elif args.depth_model=='dpts':
-            tgt_depth = [disp_net(tgt_img)]
+            tgt_depth = disp_net(tgt_img)
             ref_depths = []
+
             for ref_img in ref_imgs:
-                ref_depth = [disp_net(ref_img)]
+                ref_depth = disp_net(ref_img)
                 ref_depths.append(ref_depth)
 
 
@@ -862,13 +871,15 @@ def validate_depth(depth_val_loader, disp_net, training_writer, args):
     for i, (tgt_img, ref_imgs, intrinsics, intrinsics_inv) in tqdm(enumerate(depth_val_loader)):
         tgt_img = tgt_img.to(device)
         # compute output
+        # if i==1:
+        #     break
         if args.depth_model=='dispnet':
             tgt_depth = 1 / disp_net(tgt_img)
             predicted_depth = tgt_depth.squeeze().detach().cpu().numpy()
         
         elif args.depth_model=='dpts':
             tgt_depth = disp_net(tgt_img)
-            predicted_depth = tgt_depth.squeeze().detach().cpu().numpy()
+            predicted_depth = tgt_depth[0].squeeze().detach().cpu().numpy()
 
         current_image = (val_set.samples[i])['tgt'].split('/')[-1]
         gt_depth = load_gt_depth(current_image)
@@ -903,12 +914,14 @@ def compute_depth(disp_net, tgt_img, ref_imgs, args):
             ref_depths.append(ref_depth)
 
     elif args.depth_model=='dpts':
+        # print(tgt_img.shape)
         tgt_depth = [disp for disp in disp_net(tgt_img)]
 
     # print(len(tgt_depth))
 
         ref_depths = []
         for ref_img in ref_imgs:
+            # print(ref_img.shape)
             ref_depth = [disp for disp in disp_net(ref_img)]
             ref_depths.append(ref_depth)
 

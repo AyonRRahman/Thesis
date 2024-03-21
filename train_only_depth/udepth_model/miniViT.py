@@ -6,14 +6,7 @@ Reference Code: https://github.com/shariqfarooq123/AdaBins
 import torch
 import torch.nn as nn
 
-import os, sys
-#setting the path to the project root for facillitating importing
-script_path = os.path.abspath(__file__)
-project_folder = os.path.abspath(os.path.join(os.path.dirname(script_path), '../..'))
-# print(project_folder)
-sys.path[0] = project_folder
-
-from models.Udepth.layers import PatchTransformerEncoder, PixelWiseDotProduct
+from .layers import PatchTransformerEncoder, PixelWiseDotProduct
 
 
 class mViT(nn.Module):

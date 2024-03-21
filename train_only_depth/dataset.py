@@ -5,12 +5,16 @@ from path import Path
 import random
 import os
 from PIL import Image, ImageOps
-import matplotlib.pyplot as plt
-# import cv2
+# import matplotlib.pyplot as plt
+import cv2
 
 def load_as_float(path):
     return imread(path).astype(np.float32)
 
+def load_depth(path):
+    depth = cv2.imread(path)
+    depth = cv2.cvtColor(depth, cv2.COLOR_BGR2GRAY)
+    return depth
 
 class SequenceFolderWithGT(data.Dataset):
     """A sequence data loader where the files are arranged in this way:
@@ -128,6 +132,7 @@ class SequenceFolderWithGT(data.Dataset):
                     depth_name = None
                 
                 if self.use_pose:
+                    #world_T_tgt
                     tgt_pose = np.array(pose_lines[i].split(' ')).astype(np.float32).reshape(3,4)
                     tgt_pose = np.vstack((tgt_pose, np.array([0,0,0,1])))
                 else: 
@@ -150,6 +155,7 @@ class SequenceFolderWithGT(data.Dataset):
                         sample['ref_depths'].append(depth_name)
                     
                     if self.use_pose:
+                        #world_T_ref
                         ref_pose = np.array(pose_lines[i+j].split(' ')).astype(np.float32).reshape(3,4)
                         ref_pose = np.vstack((ref_pose, np.array([0,0,0,1])))
                         sample['ref_poses'].append(ref_pose)
@@ -160,11 +166,21 @@ class SequenceFolderWithGT(data.Dataset):
 
         self.samples = sequence_set
     
-
+    def _get_poses(self,tgt_pose, ref_pose):
+        '''
+        gets w_t_tgt and w_t_ref poses and returns ref_t_tgt
+        ref_t_tgt = inv(w_t_ref) @ w_t_tgt
+        '''
+        assert tgt_pose.shape == (4, 4), "tgt_pose must have shape (4, 4)"
+        assert ref_pose.shape == (4, 4), "ref_pose must have shape (4, 4)"
+        
+        return np.linalg.inv(ref_pose)@tgt_pose
 
     def __getitem__(self, index):
         sample = self.samples[index]
         tgt_img = load_as_float(sample['tgt'])
+        ref_imgs = [load_as_float(ref_img) for ref_img in sample['ref_imgs']]
+
         if self.use_mask:
             tgt_mask = load_as_float(sample['tgt_mask'])
             ref_masks = [load_as_float(ref_mask) for ref_mask in sample['ref_masks']]
@@ -174,30 +190,77 @@ class SequenceFolderWithGT(data.Dataset):
             ref_masks = []
         
         if self.use_depth:
-            tgt_depth = load_as_float(sample['tgt_depth'])
-            ref_depths = [load_as_float(ref_mask) for ref_mask in sample['ref_masks']]
+            tgt_depth =  np.expand_dims(load_depth(sample['tgt_depth']),0)
+            ref_depths = [np.expand_dims(load_depth(ref_depth),0) for ref_depth in sample['ref_depths']]
         else:
             tgt_depth = None
             ref_depths = []
-
-        ref_imgs = [load_as_float(ref_img) for ref_img in sample['ref_imgs']]
+        
+        if self.use_pose:
+            poses = [self._get_poses(sample['tgt_pose'], ref_pose) for ref_pose in sample['ref_poses']]
+        else:
+            poses = [] 
+        # if self.transform is not None:
+        #     imgs, intrinsics, masks = self.transform([tgt_img] + ref_imgs, np.copy(sample['intrinsics']),[tgt_mask]+ref_masks, [tgt_depth]+ref_depths)
+        #     tgt_img = imgs[0]
+        #     ref_imgs = imgs[1:]
+        #     tgt_mask = masks[0]
+        #     ref_masks = masks[1:]
+        data_sample = {
+            'tgt_img': tgt_img,
+            'ref_imgs': ref_imgs,
+            'poses': poses,
+            'inv_poses': [np.linalg.inv(pose) for pose in poses],
+            'tgt_mask': tgt_mask,
+            'ref_masks': ref_masks,
+            'tgt_depth': tgt_depth,
+            'ref_depths': ref_depths
+        }
+        data_sample['poses'] = rotMat2euler(data_sample['poses'])
+        data_sample['inv_poses'] = rotMat2euler(data_sample['inv_poses'])
+        
+        data_sample['intrinsics'] = np.copy(sample['intrinsics'])
+        data_sample['inv_intrinsics'] = np.linalg.inv(data_sample['intrinsics'])
         
         if self.transform is not None:
-            imgs, intrinsics, masks = self.transform([tgt_img] + ref_imgs, np.copy(sample['intrinsics']),[tgt_mask]+ref_masks)
-            tgt_img = imgs[0]
-            ref_imgs = imgs[1:]
-            tgt_mask = masks[0]
-            ref_masks = masks[1:]
-
-        else:
-            intrinsics = np.copy(sample['intrinsics'])
-        return tgt_img, ref_imgs, intrinsics, np.linalg.inv(intrinsics), tgt_mask, ref_masks
+            data_sample = self.transform(data_sample)
+        
+        
+        return data_sample
 
     def __len__(self):
         return len(self.samples)
 
+from scipy.spatial.transform import Rotation  
+
+def rotMat2euler(poses):
+    '''
+    takes a list of 4x4 poses and returns list of (1,6) poses euler angel
+    '''
+    poses_to_return = []
+
+    for pose in poses:
+        translation = pose[:3, 3]
+        
+        rotation_matrix = pose[:3, :3]
+        r =  Rotation.from_matrix(rotation_matrix)
+        angles = r.as_euler("xyz",degrees=False)
+        
+        pose_to_return = np.hstack((translation, angles))
+        poses_to_return.append(pose_to_return)
+        
+    return poses_to_return
 
 if __name__=='__main__':
+    import custom_transforms
+
+    normalize = custom_transforms.Normalize(mean=[0.5, 0.5, 0.5],
+                                            std=[0.5, 0.5, 0.5])
+    transforms = custom_transforms.Compose([
+        custom_transforms.ArrayToTensor(),
+        normalize
+    ])
+
     dataset = SequenceFolderWithGT(
         root = '/mundus/mrahman527/Thesis/data/Eiffel_tower_ready_small_set',
         mask_root='/mundus/mrahman527/Thesis/data/scaled_and_cropped_mask', 
@@ -205,11 +268,28 @@ if __name__=='__main__':
         seed=0, 
         train=True, 
         sequence_length=3, 
-        transform=None, 
+        transform=transforms, 
         skip_frames=1, 
-        use_mask=True, 
+        use_mask=False, 
         use_depth=True, 
-        use_pose=True
+        use_pose=False
     )
 
-    print(dataset[0])
+    data_sample = dataset[0]
+    # for data in data_sample:
+    #     print('---------',data,'---------')
+    #     print(data_sample[data])
+    # plt.imshow(data_sample['tgt_depth'].astype(np.uint8))
+    # plt.colorbar()
+    # plt.show()
+    print(data_sample['tgt_img'].shape)
+    print(data_sample['tgt_depth'].shape)
+    print(data_sample['tgt_mask'])
+    
+    print(data_sample['ref_imgs'][0].shape)
+    print(data_sample['ref_depths'][0].shape)
+    print(data_sample['ref_masks'])
+
+
+    print(data_sample['poses'])
+    print(data_sample['intrinsics'].shape)

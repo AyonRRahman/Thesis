@@ -188,15 +188,18 @@ if __name__=='__main__':
     print(len(filenames))
 
     model = DepthAnythingSFM('vits')
-    image = load_tensor_image(filenames[0])
+    # image = load_tensor_image(filenames[0])
+    image = torch.rand(2, 3, 256, 464)
+
     print(f"image shape {image.shape}")
     depth = model(image)
-    print(depth.shape)
-    depth = depth.detach().cpu().numpy().squeeze()
-    depth = 255*(depth/depth.max())
-    plt.imshow(255-depth)
-    plt.colorbar()
-    plt.show()
+    print('depth')
+    print(depth[0].shape)
+    # depth = depth.detach().cpu().numpy().squeeze()
+    # depth = 255*(depth/depth.max())
+    # plt.imshow(255-depth)
+    # plt.colorbar()
+    # plt.show()
 
 
 
