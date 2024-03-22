@@ -674,10 +674,10 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
         # if i==1:
         #     break
         # compute output
-        if args.depth_model=='dispnet':
-            tgt_depth = [1/disp for disp in disp_net(tgt_img)]
-        elif args.depth_model=='dpts':
-            tgt_depth = [disp for disp in disp_net(tgt_img)]
+        # if args.depth_model=='dispnet':
+        #     tgt_depth = [1/disp for disp in disp_net(tgt_img)]
+        # elif args.depth_model=='dpts':
+        #     tgt_depth = [disp for disp in disp_net(tgt_img)]
 
         if args.depth_model=='dispnet':
             tgt_depth = [1 / disp_net(tgt_img)]
@@ -916,8 +916,6 @@ def compute_depth(disp_net, tgt_img, ref_imgs, args):
     elif args.depth_model=='dpts':
         # print(tgt_img.shape)
         tgt_depth = [disp for disp in disp_net(tgt_img)]
-
-    # print(len(tgt_depth))
 
         ref_depths = []
         for ref_img in ref_imgs:

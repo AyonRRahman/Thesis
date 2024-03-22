@@ -7,6 +7,7 @@ from tqdm import tqdm
 from path import Path
 import torch
 from imageio.v2 import imread, imsave
+from PIL import Image, ImageOps
 import matplotlib.pyplot as plt
 import cv2
 
@@ -23,6 +24,8 @@ parser.add_argument("--img_dir", default='data/Eiffel-Tower_ready_Downscaled_col
 parser.add_argument("--scale", action='store_true', help="Will correct the scale using Median")
 parser.add_argument("--depth_model", default="dpts", help="model to select. options: dpts, udepth, dispnet", type=str)
 parser.add_argument("--saved_model", default=None, type=str)
+parser.add_argument("--RMI", action='store_true', help="Will use RMI input space for images")
+
 ######################################################
 
 
@@ -65,12 +68,24 @@ def compute_depth_errors(gt, pred, use_mask=True):
 
     return abs_rel, sq_rel, rmse, rmse_log, a1, a2, a3
 
-def load_tensor_image(filename):
+def load_tensor_image(filename, use_RMI=False):
 
     img = imread(filename).astype(np.float32)
     # print(f'img load shape {img.shape}')
+    if use_RMI:
+        img = img.astype(np.uint8)
+        r, g, b = img[:,:,0], img[:,:,1], img[:,:,2]
+        # Compute R channel
+        # r = np.array(r)
+        # Compute M channel
+        gb_max = np.maximum.reduce([g, b])
+        # Compute I channel
+        gray_c = np.array(ImageOps.grayscale(Image.fromarray(img)))
+        # Combine three channels
+        combined = np.stack((r, gb_max, gray_c), axis=-1)
+        img = combined.astype(np.float32)
+
     img = np.transpose(img, (2, 0, 1))
-    
     tensor_img = ((torch.from_numpy(img).unsqueeze(0)/255-0.5)/0.5)
     
     return tensor_img
@@ -111,7 +126,7 @@ def main():
     elif args.depth_model == 'dptb':
         model = DepthAnythingSFM(encoder='vitb')
     elif args.depth_model=='udepth':
-        model = UDepth_SFM(True)
+        model = UDepth_SFM(load_pretrained=True, rmi=args.RMI)
 
     model.to(device)
     #load saved model
@@ -139,7 +154,7 @@ def main():
     a3_tot = 0
     for i,(image, depth) in tqdm(enumerate(zip(image_list, depth_list))):
         
-        img = load_tensor_image(image).to(device)
+        img = load_tensor_image(image, use_RMI=args.RMI).to(device)
         
         gt_depth = load_tensor_image(depth).to(device)
         gt_depth = load_gt_depth(depth)
@@ -150,8 +165,8 @@ def main():
 
         if args.depth_model == 'dispnet':
             pred_depth = 1/pred_depth
-        else:
-            pred_depth = pred_depth
+        # else:
+        #     pred_depth = pred_depth
 
 
         if i==0:

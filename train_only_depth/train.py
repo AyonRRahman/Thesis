@@ -84,7 +84,7 @@ parser.add_argument('--use_pretrained', action='store_true', help='to start from
 parser.add_argument('--use_RMI', action='store_true', help='use RMI input space instead of RGB.')
 parser.add_argument('--train_until_converge', action='store_true', help='train till converging without stopping')
 
-parser.add_argument("--depth_model", default="dispnet", help="model to select. options: dpts, dispnet", type=str)
+parser.add_argument("--depth_model", default="dispnet", help="model to select. options: udepth, dispnet", type=str)
 
 parser.add_argument('--use_gt_mask', action='store_true',
             help='use mask in the training process')
@@ -101,6 +101,8 @@ parser.add_argument('--train', default="both", choices=['depth', 'pose','both'],
 parser.add_argument('--manual_weight', action='store_true',
             help='manual weight initialize')
 
+# parser.add_argument('--use_RMI', action='store_true', help='Use RMI input space.')
+parser.add_argument('--train_from_scrach', action='store_true', help='train udepth from scrach')
 
 #define global variables
 val_depth_iter = 0
@@ -316,11 +318,12 @@ def main():
     if args.depth_model == "dispnet":
         disp_net = DispNetS().to(device)
 
-    elif args.depth_model =="dpts":
+    elif args.depth_model =="udepth":
         # disp_net = DepthAnythingSFM(encoder='vits').to(device)
-        disp_net = UDepth_SFM(load_pretrained=True)
+        load_pretrain = not args.train_from_scrach
+        disp_net = UDepth_SFM(load_pretrained=load_pretrain, rmi=args.use_RMI)
 
-
+    
     pose_net = PoseResNet(18, args.with_pretrain).to(device)
 
     #epochs to skip if continue training from saved model
@@ -659,11 +662,7 @@ def train_depth(args, train_loader, disp_net, pose_net, optimizer, epoch_size, l
     for i,data_sample in enumerate(train_loader):
         
         log_losses = i > 0 and n_iter % args.print_freq == 0
-        # if i==1:
-        #     pass
-        # else:
-        #     log_losses = True
-
+        
         # measure data loading time
         data_time.update(time.time() - end)
         
@@ -677,8 +676,6 @@ def train_depth(args, train_loader, disp_net, pose_net, optimizer, epoch_size, l
 
         tgt_mask = data_sample['tgt_mask'].to(device)
         ref_masks = [mask.to(device) for mask in data_sample['ref_masks']]
-        
-
         
         # compute output
         tgt_depth, ref_depths = compute_depth(disp_net, tgt_img, ref_imgs, args)
@@ -717,7 +714,7 @@ def train_depth(args, train_loader, disp_net, pose_net, optimizer, epoch_size, l
         optimizer.step()
 
         #log gradients
-        log_gradients_in_model(disp_net, train_writer, n_iter)
+        # log_gradients_in_model(disp_net, train_writer, n_iter)
 
 
         # measure elapsed time
@@ -967,7 +964,7 @@ def validate_train_depth(args, val_loader, disp_net, pose_net, epoch, logger, ou
     batch_time = AverageMeter()
     losses = AverageMeter(i=4, precision=4)
     log_outputs = len(output_writers) > 0
-    print(f'len of output writers {len(output_writers)}')
+    # print(f'len of output writers {len(output_writers)}')
 
     # switch to evaluate mode
     disp_net.eval()
@@ -994,11 +991,24 @@ def validate_train_depth(args, val_loader, disp_net, pose_net, epoch, logger, ou
         with torch.no_grad():
             poses, poses_inv = compute_pose_with_inv(pose_net, tgt_img, ref_imgs)
         
-        tgt_depth = [1 / disp_net(tgt_img)]
-        ref_depths = []
-        for ref_img in ref_imgs:
-            ref_depth = [1 / disp_net(ref_img)]
-            ref_depths.append(ref_depth)
+        # tgt_depth = [1 / disp_net(tgt_img)]
+        # ref_depths = []
+        # for ref_img in ref_imgs:
+        #     ref_depth = [1 / disp_net(ref_img)]
+        #     ref_depths.append(ref_depth)
+        if args.depth_model=='dispnet':
+            tgt_depth = [1 / disp_net(tgt_img)]
+            ref_depths = []
+            for ref_img in ref_imgs:
+                ref_depth = [1 / disp_net(ref_img)]
+                ref_depths.append(ref_depth)
+
+        elif args.depth_model=='udepth':
+            tgt_depth = disp_net(tgt_img)
+            ref_depths = []
+            for ref_img in ref_imgs:
+                ref_depth = disp_net(ref_img)
+                ref_depths.append(ref_depth)
 
         if log_outputs and i < len(output_writers):
             if epoch == 0:
@@ -1098,11 +1108,19 @@ def validate_train_both(args, val_loader, disp_net, pose_net, epoch, logger, out
         
         poses, poses_inv = compute_pose_with_inv(pose_net, tgt_img, ref_imgs)
         
-        tgt_depth = [1 / disp_net(tgt_img)]
-        ref_depths = []
-        for ref_img in ref_imgs:
-            ref_depth = [1 / disp_net(ref_img)]
-            ref_depths.append(ref_depth)
+        if args.depth_model=='dispnet':
+            tgt_depth = [1 / disp_net(tgt_img)]
+            ref_depths = []
+            for ref_img in ref_imgs:
+                ref_depth = [1 / disp_net(ref_img)]
+                ref_depths.append(ref_depth)
+
+        elif args.depth_model=='udepth':
+            tgt_depth = disp_net(tgt_img)
+            ref_depths = []
+            for ref_img in ref_imgs:
+                ref_depth = disp_net(ref_img)
+                ref_depths.append(ref_depth)
 
         if log_outputs and i < len(output_writers):
             if epoch == 0:
@@ -1220,10 +1238,9 @@ def compute_depth(disp_net, tgt_img, ref_imgs, args):
             ref_depth = [1/disp for disp in disp_net(ref_img)]
             ref_depths.append(ref_depth)
 
-    elif args.depth_model=='dpts':
+    elif args.depth_model=='udepth':
+        
         tgt_depth = [disp for disp in disp_net(tgt_img)]
-
-
         ref_depths = []
         for ref_img in ref_imgs:
             ref_depth = [disp for disp in disp_net(ref_img)]

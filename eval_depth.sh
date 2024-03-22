@@ -6,7 +6,7 @@
 #SBATCH --error=eval_depth.err
 
 #SBATCH --gres=gpu
-#SBATCG --mem-per-gpu=24G
+
 
 which python
 
@@ -35,3 +35,4 @@ echo $HOSTNAME
 
 #udepth
 python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_pretrained2/dispnet_model_best.pth.tar
+python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_pretrained/dispnet_model_best.pth.tar

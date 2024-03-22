@@ -125,11 +125,14 @@ class UDepth(nn.Module):
 
 
 class UDepth_SFM(nn.Module):
-    def __init__(self, load_pretrained=False):
+    def __init__(self, load_pretrained=False, rmi=False):
         super(UDepth_SFM, self).__init__()
         self.model = UDepth.build(n_bins=80, min_val=0.001, max_val=1, norm="linear")
         if load_pretrained:
-            weights = torch.load('/mundus/mrahman527/Thesis/train_only_depth/model_RGB.pth', map_location=torch.device('cpu'))
+            if not rmi:
+                weights = torch.load('/mundus/mrahman527/Thesis/train_only_depth/model_RGB.pth', map_location=torch.device('cpu'))
+            else:
+                weights = torch.load('/mundus/mrahman527/Thesis/train_only_depth/model_RMI.pth', map_location=torch.device('cpu'))
 
             self.model.load_state_dict(weights)
             print('pretrained model loaded 1-')

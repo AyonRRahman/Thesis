@@ -1,14 +1,15 @@
 #!/bin/bash
 
 #SBATCH --time=7-00:00:00
-#SBATCH --job-name=full_train
-#SBATCH --output=full_train.out
-#SBATCH --error=full_train.err
+#SBATCH --job-name=udepth_both
+#SBATCH --output=udepth_both.out
+#SBATCH --error=udepth_both.err
 
-#SBATCH --gres=gpu
-#SBATCH --mem-per-gpu=24G
+#SBATCH --gres=gpu:a40-48
+#SBATCH --mem-per-gpu=48G
 
-job_name="full_train"
+
+job_name="udepth_both"
 
 echo $HOSTNAME
 nvidia-smi 
@@ -22,7 +23,7 @@ echo "removed saved folders"
 
 python train.py \
 --num-scales 1 \
--b8 -s0.1 -c0.5 --sequence-length 3 \
+-b32 -s0.1 -c0.5 --sequence-length 3 \
 --learning-rate 1e-4 \
 --with-ssim 1 \
 --with-mask 1 \
@@ -32,12 +33,12 @@ python train.py \
 --use_pretrained \
 --epochs 400 --learning-rate 1e-4 \
 --name $job_name \
---depth_model dispnet \
---train depth \
+--depth_model udepth \
+--train both \
 --use_gt_pose \
---use_gt_mask \
---manual_weight\
-# --epoch-size 1 \
+--use_gt_mask --epoch-size 0 \
+# --manual_weight\
+
 
 
 
