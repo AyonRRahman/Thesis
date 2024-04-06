@@ -1,15 +1,15 @@
 #!/bin/bash
 
 #SBATCH --time=7-00:00:00
-#SBATCH --job-name=udepth_both
-#SBATCH --output=udepth_both.out
-#SBATCH --error=udepth_both.err
+#SBATCH --job-name=udepth_depth
+#SBATCH --output=udepth_depth.out
+#SBATCH --error=udepth_depth.err
 
 #SBATCH --gres=gpu:a40-48
 #SBATCH --mem-per-gpu=48G
 
 
-job_name="udepth_both"
+job_name="udepth_depth"
 
 echo $HOSTNAME
 nvidia-smi 
@@ -34,7 +34,7 @@ python train.py \
 --epochs 400 --learning-rate 1e-4 \
 --name $job_name \
 --depth_model udepth \
---train both \
+--train depth \
 --use_gt_pose \
 --use_gt_mask --epoch-size 0 \
 # --manual_weight\

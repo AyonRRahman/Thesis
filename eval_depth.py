@@ -42,6 +42,12 @@ def compute_depth_errors(gt, pred, use_mask=True):
     if use_mask:
         mask = np.array(gt, dtype=bool).astype(int)
         pred = (pred*mask) #element wise multiply the mask
+    
+        #getting rid of zero values
+        # pred = pred.flatten()
+        # gt = gt.flatten()
+        # pred = pred[pred!=0]
+        # gt = gt[gt!=0]
 
     thresh = np.maximum((gt / pred), (pred / gt))
     a1 = (thresh < 1.25).mean()
@@ -135,8 +141,8 @@ def main():
         print(f"loading {saved_model_path}")
         weights = torch.load(saved_model_path, map_location=device)
         
-        # if 'epoch' in weights:
-        #     print(f'loading model from epoch{weights['epoch']}')
+        if 'epoch' in weights:
+            print(f"loading model from epoch{weights['epoch']}")
 
         model.load_state_dict(weights['state_dict'], strict=False)
         model.eval()
@@ -154,7 +160,7 @@ def main():
     a3_tot = 0
     for i,(image, depth) in tqdm(enumerate(zip(image_list, depth_list))):
         
-        img = load_tensor_image(image, use_RMI=args.RMI).to(device)
+        img = load_tensor_image(image).to(device)
         
         gt_depth = load_tensor_image(depth).to(device)
         gt_depth = load_gt_depth(depth)
@@ -165,8 +171,8 @@ def main():
 
         if args.depth_model == 'dispnet':
             pred_depth = 1/pred_depth
-        # else:
-        #     pred_depth = pred_depth
+        else:
+            pred_depth = pred_depth
 
 
         if i==0:

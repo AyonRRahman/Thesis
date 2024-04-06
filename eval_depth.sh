@@ -4,7 +4,7 @@
 #SBATCH --job-name=eval_depth
 #SBATCH --output=eval_depth.out
 #SBATCH --error=eval_depth.err
-
+#SBATCH --partition=mundus
 #SBATCH --gres=gpu
 
 

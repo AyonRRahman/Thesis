@@ -291,8 +291,13 @@ def main():
     print("====="*10)
     
     #Data Loader
+    if args.epoch_size==0:
+        shuffle = True
+    else:
+        shuffle = False
+
     train_loader = torch.utils.data.DataLoader(
-        train_set, batch_size=args.batch_size, shuffle=False,
+        train_set, batch_size=args.batch_size, shuffle=shuffle,
         num_workers=args.workers, pin_memory=True)
 
     val_loader = torch.utils.data.DataLoader(
@@ -321,7 +326,7 @@ def main():
     elif args.depth_model =="udepth":
         # disp_net = DepthAnythingSFM(encoder='vits').to(device)
         load_pretrain = not args.train_from_scrach
-        disp_net = UDepth_SFM(load_pretrained=load_pretrain, rmi=args.use_RMI)
+        disp_net = UDepth_SFM(load_pretrained=load_pretrain, rmi=args.use_RMI).to(device)
 
     
     pose_net = PoseResNet(18, args.with_pretrain).to(device)
@@ -372,8 +377,8 @@ def main():
             epoch_skip = weights['epoch']-1
         
     #parallel training in multigpu if available
-    disp_net = torch.nn.DataParallel(disp_net)
-    pose_net = torch.nn.DataParallel(pose_net)
+    # disp_net = torch.nn.DataParallel(disp_net)
+    # pose_net = torch.nn.DataParallel(pose_net)
 
     print('=> setting adam solver')
 
@@ -393,7 +398,7 @@ def main():
         print('loading saved model for pose net ')
         weights = torch.load('/mundus/mrahman527/Thesis/saved_models/compare_new_train_with_mask/exp_pose_model_best.pth.tar',map_location=device)
         pose_net.load_state_dict(weights['state_dict'], strict=False)
-        pose_net = torch.nn.DataParallel(pose_net)
+        # pose_net = torch.nn.DataParallel(pose_net)
 
 
     elif args.train=='pose':
@@ -506,20 +511,20 @@ def main():
             save_checkpoint(
                 args.model_save_path, {
                     'epoch': epoch + 1,
-                    'state_dict': disp_net.module.state_dict()
+                    'state_dict': disp_net.state_dict()
                 }, {
                     'epoch': epoch + 1,
-                    'state_dict': pose_net.module.state_dict()
+                    'state_dict': pose_net.state_dict()
                 },
                 is_best)
         elif args.train=='depth':
             save_checkpoint(
                 args.model_save_path, {
                     'epoch': epoch + 1,
-                    'state_dict': disp_net.module.state_dict()
+                    'state_dict': disp_net.state_dict()
                 }, {
                     'epoch': epoch + 1,
-                    'state_dict': disp_net.module.state_dict()
+                    'state_dict': disp_net.state_dict()
                 },
                 is_best)
         
@@ -527,10 +532,10 @@ def main():
             save_checkpoint(
                 args.model_save_path, {
                     'epoch': epoch + 1,
-                    'state_dict': pose_net.module.state_dict()
+                    'state_dict': pose_net.state_dict()
                 }, {
                     'epoch': epoch + 1,
-                    'state_dict': pose_net.module.state_dict()
+                    'state_dict': pose_net.state_dict()
                 },
                 is_best)
             

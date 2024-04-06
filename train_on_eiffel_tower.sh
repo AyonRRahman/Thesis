@@ -25,6 +25,6 @@ python train_new.py data/Eiffel-Tower_ready_Downscaled_colmap \
 --use_pretrained \
 --epochs 400 --learning-rate 1e-4 \
 --name udepth_pretrained2 \
---depth_model dpts \
+--depth_model udepth \
 # --epoch-size 20
 # --pretrained-pose /mundus/mrahman527/Thesis/saved_models/do_not_optimize_s0.5_c1_sl3/exp_pose_model_best.pth.tar \

@@ -1,18 +1,20 @@
 #!/bin/bash
 
 #SBATCH --time=7-00:00:00
-#SBATCH --job-name=both_train
-#SBATCH --output=both_train.out
-#SBATCH --error=both_train.err
+#SBATCH --job-name=udepth_rmi
+#SBATCH --output=udepth_rmi.out
+#SBATCH --error=udepth_rmi.err
 
-#SBATCH --gres=gpu
-#SBATCH --mem-per-gpu=24G
+#SBATCH --gres=gpu:3090:1
+#SBATCH --mem-per-gpu=48G
+#SBATCH --partition=gpu
 
 echo $HOSTNAME
 nvidia-smi 
 echo $HOSTNAME
 
 
+which python
 
 python train.py \
 --num-scales 1 \
@@ -23,12 +25,12 @@ python train.py \
 --log-output \
 --use_pretrained \
 --epochs 400 --learning-rate 1e-4 \
---name both_train \
---depth_model dispnet \
+--name both_train_udepth_rmi \
+--depth_model udepth \
 --train both \
 --use_gt_depth \
 --use_gt_mask \
---use_gt_pose
+--use_gt_pose --use_RMI
 
 
 

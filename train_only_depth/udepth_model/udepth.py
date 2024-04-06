@@ -6,7 +6,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from .miniViT import mViT
-
+import torchvision
 
 class UpSample(nn.Sequential):
     def __init__(self, skip_input, output_features):
@@ -123,25 +123,48 @@ class UDepth(nn.Module):
         print('Done.')
         return m
 
+class RGB2RMI(nn.Module):
+    '''module to convert RGB images into RMI input spaces. takes input channel first(B, C, H, W)'''
+    def __init__(self):
+        super(RGB2RMI, self).__init__()
+    
+    def forward(self, img):
+        gray = torchvision.transforms.functional.rgb_to_grayscale(img).squeeze(1)
+        r,g,b = img[:,0,:,:], img[:,1,:,:],img[:,2,:,:]
+        max_tensor = torch.stack((g, b), dim=0).max(dim=0)[0]
+        
+        return torch.stack((r,max_tensor,gray), dim=1)
 
 class UDepth_SFM(nn.Module):
-    def __init__(self, load_pretrained=False, rmi=False):
+    def __init__(self, load_pretrained=False, rmi=False, return_attn=False):
         super(UDepth_SFM, self).__init__()
         self.model = UDepth.build(n_bins=80, min_val=0.001, max_val=1, norm="linear")
+        device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        self.return_attn = return_attn
+        if rmi:
+            self.convert = RGB2RMI()
+        else:
+            self.convert = None
         if load_pretrained:
             if not rmi:
-                weights = torch.load('/mundus/mrahman527/Thesis/train_only_depth/model_RGB.pth', map_location=torch.device('cpu'))
+                weights = torch.load('/mundus/mrahman527/Thesis/train_only_depth/model_RGB.pth', map_location=device)
             else:
-                weights = torch.load('/mundus/mrahman527/Thesis/train_only_depth/model_RMI.pth', map_location=torch.device('cpu'))
+                weights = torch.load('/mundus/mrahman527/Thesis/train_only_depth/model_RMI.pth', map_location=device)
 
             self.model.load_state_dict(weights)
-            print('pretrained model loaded 1-')
+            print('pretrained model loaded 1')
+            print(device)
+            
         self.upsample = nn.Upsample(scale_factor=2, mode='nearest')
 
     def forward(self, x):
+        if self.convert is not None:
+            # print('converting')
+            x = self.convert(x)
+            
         bin_edges, pred = self.model(x)
         pred = self.upsample(pred)
-        return [1-pred]
+        return [pred]
 
 
 if __name__ == '__main__':
