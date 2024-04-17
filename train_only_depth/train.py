@@ -103,6 +103,7 @@ parser.add_argument('--manual_weight', action='store_true',
 
 # parser.add_argument('--use_RMI', action='store_true', help='Use RMI input space.')
 parser.add_argument('--train_from_scrach', action='store_true', help='train udepth from scrach')
+parser.add_argument('--use_mask_from_attn', action='store_true', help='use mask derived from attn if udepth model selected')
 
 #define global variables
 val_depth_iter = 0
@@ -326,7 +327,7 @@ def main():
     elif args.depth_model =="udepth":
         # disp_net = DepthAnythingSFM(encoder='vits').to(device)
         load_pretrain = not args.train_from_scrach
-        disp_net = UDepth_SFM(load_pretrained=load_pretrain, rmi=args.use_RMI).to(device)
+        disp_net = UDepth_SFM(load_pretrained=load_pretrain, rmi=args.use_RMI, return_attn=args.use_mask_from_attn).to(device)
 
     
     pose_net = PoseResNet(18, args.with_pretrain).to(device)
@@ -448,7 +449,11 @@ def main():
             train_loss = train_pose(args, train_loader, pose_net, optimizer, args.epoch_size, logger, training_writer)
         
         elif args.train=='both':
-            train_loss = train_both(args, train_loader, disp_net,pose_net, optimizer, args.epoch_size, logger, training_writer)
+            if args.use_mask_from_attn and args.depth_model=='udepth':
+                train_loss = train_both_attn_mask(args, train_loader, disp_net,pose_net, optimizer, args.epoch_size, logger, training_writer)
+        
+            else:
+                train_loss = train_both(args, train_loader, disp_net,pose_net, optimizer, args.epoch_size, logger, training_writer)
             
 
         logger.train_writer.write(' * Avg Loss : {:.3f}'.format(train_loss))
@@ -465,7 +470,10 @@ def main():
             pass
 
         elif args.train=='both':
-            errors, error_names = validate_train_both(args, val_loader, disp_net, pose_net, epoch, logger, output_writers)
+            if args.use_mask_from_attn and args.depth_model=='udepth':
+                errors, error_names = validate_train_both_attn_mask(args, val_loader, disp_net, pose_net, epoch, logger, output_writers)
+            else:
+                errors, error_names = validate_train_both(args, val_loader, disp_net, pose_net, epoch, logger, output_writers)
             
 
         #mse on depth with gt
@@ -546,6 +554,114 @@ def main():
             writer.writerow([train_loss, decisive_error])
 
     logger.epoch_bar.finish()
+
+def train_both_attn_mask(args, train_loader, disp_net, pose_net, optimizer, epoch_size, logger, train_writer):
+    global n_iter, device
+    global w1, w2, w3
+    
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    losses = AverageMeter(precision=4)
+    
+    # switch to train mode
+    disp_net.train()
+    pose_net.train()
+
+    end = time.time()
+    logger.train_bar.update(0)
+
+    
+    for i,data_sample in enumerate(train_loader):
+        log_losses = i > 0 and n_iter % args.print_freq == 0
+        
+        # measure data loading time
+        data_time.update(time.time() - end)
+        
+        tgt_img = data_sample['tgt_img'].to(device)
+        ref_imgs = [img.to(device) for img in data_sample['ref_imgs']]
+        intrinsics = data_sample['intrinsics'].to(device)
+        intrinsics_inv = data_sample['inv_intrinsics'].to(device)
+        
+        # poses = [pose.to(device) for pose in data_sample['poses']]  #src_t_tgt
+        # poses_inv = [inv_pose.to(device) for inv_pose in data_sample['inv_poses']]
+
+        # tgt_mask = data_sample['tgt_mask'].to(device)
+        # ref_masks = [mask.to(device) for mask in data_sample['ref_masks']]
+        
+        # print('from dataset')
+        # print(tgt_mask.shape)
+        # print(len(ref_masks))
+        # print(ref_masks[0].shape)
+
+        # compute output
+        tgt_depth, ref_depths, tgt_mask, ref_masks = compute_depth(disp_net, tgt_img, ref_imgs, args)
+        # tgt_depth, ref_depths, _, _ = compute_depth(disp_net, tgt_img, ref_imgs, args)
+        
+        # print('from computed')
+        # print(tgt_mask.shape)
+        # print(len(ref_masks))
+        # print(ref_masks[0].shape)
+        
+        poses, poses_inv = compute_pose_with_inv(pose_net, tgt_img, ref_imgs)
+        
+        
+        # if args.use_gt_mask:
+        # print(ref_depths[0
+        
+        loss_1, loss_3 = compute_photo_and_geometry_loss(tgt_img, ref_imgs, intrinsics, tgt_depth, ref_depths,
+                                                        poses, poses_inv, args.num_scales, args.with_ssim,
+                                                        args.with_mask, args.with_auto_mask, args.padding_mode, tgt_mask, ref_masks)
+
+        # else:
+        # loss_1, loss_3 = compute_photo_and_geometry_loss(tgt_img, ref_imgs, intrinsics, tgt_depth, ref_depths,
+        #                                                 poses, poses_inv, args.num_scales, args.with_ssim,
+        #                                                 args.with_mask, args.with_auto_mask, args.padding_mode)
+    
+
+        loss_2 = compute_smooth_loss(tgt_depth, tgt_img, ref_depths, ref_imgs)
+        loss = w1*loss_1 + w2*loss_2 + w3*loss_3
+        # print(f'loss: {loss}')
+        
+        if log_losses:
+            train_writer.add_scalar('photometric_error', loss_1.item(), n_iter)
+            train_writer.add_scalar('disparity_smoothness_loss', loss_2.item(), n_iter)
+            train_writer.add_scalar('geometry_consistency_loss', loss_3.item(), n_iter)
+            train_writer.add_scalar('total_loss', loss.item(), n_iter)
+
+        # record loss and EPE
+        losses.update(loss.item(), args.batch_size)
+
+        # compute gradient and do Adam step
+        optimizer.zero_grad()
+        loss.backward()
+        optimizer.step()
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+
+        with open(args.save_path/args.log_full, 'a') as csvfile:
+            writer = csv.writer(csvfile, delimiter='\t')
+            writer.writerow([loss.item(), loss_1.item(), loss_2.item(), loss_3.item()])
+        logger.train_bar.update(i+1)
+        if i % args.print_freq == 0:
+            logger.train_writer.write('Train: Time {} Data {} Loss {}'.format(batch_time, data_time, losses))
+        if i >= (epoch_size - 1):
+            break
+
+        n_iter += 1
+        
+        if i%100==0:
+            # Check how much GPU memory is currently being used
+            memory_used = torch.cuda.memory_allocated()
+            print(f"Current GPU memory used: {memory_used / 1024**3:.2f} GB")
+
+            # Check how much GPU memory is currently cached
+            memory_cached = torch.cuda.memory_cached()
+            print(f"Current GPU memory cached: {memory_cached / 1024**3:.2f} GB")
+            print(f"Max GPU memory used: {torch.cuda.max_memory_allocated()/1024**3} GB")
+        
+    return losses.avg[0]
 
 
 def train_both(args, train_loader, disp_net, pose_net, optimizer, epoch_size, logger, train_writer):
@@ -1189,6 +1305,128 @@ def validate_train_both(args, val_loader, disp_net, pose_net, epoch, logger, out
     logger.valid_bar.update(len(val_loader))
     return losses.avg, ['Total loss', 'Photo loss', 'Smooth loss', 'Consistency loss']
 
+@torch.no_grad()
+def validate_train_both_attn_mask(args, val_loader, disp_net, pose_net, epoch, logger, output_writers):
+    global device
+    global val_set
+    global w1, w2, w3
+
+    batch_time = AverageMeter()
+    losses = AverageMeter(i=4, precision=4)
+    log_outputs = len(output_writers) > 0
+
+    # switch to evaluate mode
+    disp_net.eval()
+    pose_net.eval()
+
+    end = time.time()
+    logger.valid_bar.update(0)
+    for i,data_sample in enumerate(val_loader):
+        tgt_img = data_sample['tgt_img'].to(device)
+        ref_imgs = [img.to(device) for img in data_sample['ref_imgs']]
+        intrinsics = data_sample['intrinsics'].to(device)
+        intrinsics_inv = data_sample['inv_intrinsics'].to(device)
+        
+        # poses = [pose.to(device) for pose in data_sample['poses']]  #src_t_tgt
+        # poses_inv = [inv_pose.to(device) for inv_pose in data_sample['inv_poses']]
+
+        gt_tgt_mask = data_sample['tgt_mask'].to(device)
+        # ref_masks = [mask.to(device) for mask in data_sample['ref_masks']]
+        
+        # compute output
+        # gttgt_depth, ref_depths = compute_depth(disp_net, tgt_img, ref_imgs, args)
+        
+        poses, poses_inv = compute_pose_with_inv(pose_net, tgt_img, ref_imgs)
+        
+        if args.depth_model=='dispnet':
+            tgt_depth = [1 / disp_net(tgt_img)]
+            ref_depths = []
+            for ref_img in ref_imgs:
+                ref_depth = [1 / disp_net(ref_img)]
+                ref_depths.append(ref_depth)
+
+        elif args.depth_model=='udepth':
+            tgt_depth, tgt_range_attn_maps = disp_net(tgt_img)
+            tgt_mask = get_mask_from_attn(tgt_range_attn_maps)
+
+            ref_depths = []
+            ref_masks = []
+            for ref_img in ref_imgs:
+                ref_depth, ref_range_attn_maps = disp_net(ref_img)
+                ref_depths.append(ref_depth)
+                ref_mask = get_mask_from_attn(tgt_range_attn_maps)
+                ref_masks.append(ref_mask)
+
+        if log_outputs and i < len(output_writers):
+            if epoch == 0:
+                output_writers[i].add_image('val Input', tensor2array(tgt_img[0]), 0)
+                current_image = (val_set.samples[i])['tgt'].split('/')[-1]
+                depth_file_name = Path(args.depth_dir)/current_image[0:4]/'depth_'+current_image
+                #try to use the tensor2array function later for depth
+                print('------------')
+                # print(f'current image name {(val_set.samples[i])['tgt'].split('/')[-1]}')
+                print(f"depth_file_name {depth_file_name}")
+                print('------------')
+                
+                depth_image = load_as_float(depth_file_name)
+                depth_image = np.transpose(depth_image, (2, 0, 1))
+                print(depth_image.shape)
+                depth_image = depth_image/depth_image.max()
+                output_writers[i].add_image('gt depth', tensor2array(torch.tensor(depth_image), max_value=None, colormap='magma'), 0)
+                
+                output_writers[i].add_image('gt mask', 
+                                        tensor2array(gt_tgt_mask[0], max_value=None, colormap='magma'),
+                                        epoch)
+            
+
+            output_writers[i].add_image('val Dispnet Output Normalized',
+                                        tensor2array(1/tgt_depth[0][0], max_value=None, colormap='magma'),
+                                        epoch)
+            output_writers[i].add_image('val Depth Output',
+                                        tensor2array(tgt_depth[0][0], max_value=None, colormap='magma'),
+                                        epoch)
+            print(gt_tgt_mask.shape)
+            output_writers[i].add_image('attn mask', 
+                                        tensor2array(tgt_mask[0], max_value=None, colormap='magma'),
+                                        epoch)
+                                        
+        # poses, poses_inv = compute_pose_with_inv(pose_net, tgt_img, ref_imgs)
+
+        # if args.use_gt_mask:
+        loss_1, loss_3 = compute_photo_and_geometry_loss(tgt_img, ref_imgs, intrinsics, tgt_depth, ref_depths,
+                                                        poses, poses_inv, args.num_scales, args.with_ssim,
+                                                        args.with_mask, False, args.padding_mode, tgt_mask, ref_masks)
+        # else:
+        #     loss_1, loss_3 = compute_photo_and_geometry_loss(tgt_img, ref_imgs, intrinsics, tgt_depth, ref_depths,
+        #                                                  poses, poses_inv, args.num_scales, args.with_ssim,
+        #                                                  args.with_mask, False, args.padding_mode)
+            
+
+        loss_2 = compute_smooth_loss(tgt_depth, tgt_img, ref_depths, ref_imgs)
+
+        loss_1 = loss_1.item()
+        loss_2 = loss_2.item()
+        loss_3 = loss_3.item()
+        
+        
+        #making sure to stop calculating the weights gradients.
+        with torch.no_grad():
+            loss = w1*loss_1 + w2*loss_2 + w3*loss_3
+            
+        # loss = loss_1
+        losses.update([loss, loss_1, loss_2, loss_3])
+
+        # measure elapsed time
+        batch_time.update(time.time() - end)
+        end = time.time()
+        logger.valid_bar.update(i+1)
+        if i % args.print_freq == 0:
+            logger.valid_writer.write('valid: Time {} Loss {}'.format(batch_time, losses))
+
+        
+    logger.valid_bar.update(len(val_loader))
+    return losses.avg, ['Total loss', 'Photo loss', 'Smooth loss', 'Consistency loss']
+
 
 
 @torch.no_grad()
@@ -1244,14 +1482,38 @@ def compute_depth(disp_net, tgt_img, ref_imgs, args):
             ref_depths.append(ref_depth)
 
     elif args.depth_model=='udepth':
-        
-        tgt_depth = [disp for disp in disp_net(tgt_img)]
-        ref_depths = []
-        for ref_img in ref_imgs:
-            ref_depth = [disp for disp in disp_net(ref_img)]
-            ref_depths.append(ref_depth)
+        if args.use_mask_from_attn:
+            tgt_depth_out, tgt_range_attn_maps = disp_net(tgt_img)
+            tgt_depth = [disp for disp in tgt_depth_out]
+            tgt_mask = get_mask_from_attn(tgt_range_attn_maps)
+            
+            ref_depths = []
+            ref_masks = []
+            for ref_img in ref_imgs:
+                ref_depth_out, ref_range_attn_maps = disp_net(ref_img)
+                ref_depth = [disp for disp in ref_depth_out]
+                ref_depths.append(ref_depth)
+                ref_mask = get_mask_from_attn(ref_range_attn_maps)
+                ref_masks.append(ref_mask)
+            return tgt_depth, ref_depths, tgt_mask, ref_masks
 
+        else:
+            tgt_depth = [disp for disp in disp_net(tgt_img)]
+            ref_depths = []
+            for ref_img in ref_imgs:
+                ref_depth = [disp for disp in disp_net(ref_img)]
+                ref_depths.append(ref_depth)
+
+    # print(f"tgt_depth {tgt_depth.shape}, ref_depths 0 {ref_depths[0].shape} ")
     return tgt_depth, ref_depths
+
+@torch.no_grad
+def get_mask_from_attn(range_attn_maps, threshold=0.7):
+    # print(range_attn_maps.shape)
+    attn = range_attn_maps.sum(1).detach()
+    attn = (attn-attn.min())/(attn.max()-attn.min())
+    # print(attn.shape)
+    return attn<threshold
 
 from imageio.v2 import imread
 

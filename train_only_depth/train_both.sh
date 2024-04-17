@@ -1,12 +1,12 @@
 #!/bin/bash
 
 #SBATCH --time=7-00:00:00
-#SBATCH --job-name=udepth_rmi
-#SBATCH --output=udepth_rmi.out
-#SBATCH --error=udepth_rmi.err
+#SBATCH --job-name=attn_mask
+#SBATCH --output=attn_mask.out
+#SBATCH --error=attn_mask.err
 
-#SBATCH --gres=gpu:3090:1
-#SBATCH --mem-per-gpu=48G
+#SBATCH --gres=gpu:a40-48:1
+
 #SBATCH --partition=gpu
 
 echo $HOSTNAME
@@ -18,19 +18,19 @@ which python
 
 python train.py \
 --num-scales 1 \
--b8 -s0.1 -c0.5 --sequence-length 3 \
+-b32 -s0.1 -c0.5 --sequence-length 3 \
 --with-ssim 1 \
 --with-mask 1 --with-auto-mask 1 \
 --with-pretrain 1 \
 --log-output \
 --use_pretrained \
 --epochs 400 --learning-rate 1e-4 \
---name both_train_udepth_rmi \
+--name attn_mask \
 --depth_model udepth \
 --train both \
 --use_gt_depth \
 --use_gt_mask \
---use_gt_pose --use_RMI
+--use_gt_pose --use_RMI --use_mask_from_attn 
 
 
 

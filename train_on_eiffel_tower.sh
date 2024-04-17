@@ -1,9 +1,9 @@
 #!/bin/bash
 
 #SBATCH --time=7-00:00:00
-#SBATCH --job-name=udepth_pretrained2
-#SBATCH --output=udepth_pretrained2.out
-#SBATCH --error=udepth_pretrained2.err
+#SBATCH --job-name=udepth_actual_rmi_train
+#SBATCH --output=udepth_actual_rmi_train.out
+#SBATCH --error=udepth_actual_rmi_train.err
 #SBATCH --gres=gpu:a40-48:1
 #SBATCH --mem-per-gpu=48G
 
@@ -23,8 +23,9 @@ python train_new.py data/Eiffel-Tower_ready_Downscaled_colmap \
 --with-pretrain 1 \
 --log-output \
 --use_pretrained \
---epochs 400 --learning-rate 1e-4 \
---name udepth_pretrained2 \
+--epochs 800 --learning-rate 1e-4 \
+--name udepth_actual_rmi_train \
 --depth_model udepth \
+--train_until_converge --use_RMI
 # --epoch-size 20
 # --pretrained-pose /mundus/mrahman527/Thesis/saved_models/do_not_optimize_s0.5_c1_sl3/exp_pose_model_best.pth.tar \

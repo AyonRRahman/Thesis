@@ -14,6 +14,8 @@ experiments.py
 /data/Eiffel-Tower_undistorted.zip
 /data/Eiffel-Tower_ready_Downscaled/*
 /data/Eiffel-Tower_depth_images/*
+/data/Varos_ready/*
+/data/Eiffel-Tower_undis_full_size/*
 *.pyc
 /checkpoints/*
 /saved_models/*

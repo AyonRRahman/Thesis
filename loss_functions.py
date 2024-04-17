@@ -133,7 +133,7 @@ def compute_pairwise_loss(tgt_img, ref_img, tgt_depth, ref_depth, pose, intrinsi
         # print(f"valid mask {valid_mask.shape}")
         valid_mask = torch.mul(valid_mask, tgt_mask.unsqueeze(1))
         # print(f"valid mask {valid_mask.shape}")
-
+        
     # compute all loss
     reconstruction_loss = mean_on_mask(diff_img, valid_mask)
     geometry_consistency_loss = mean_on_mask(diff_depth, valid_mask)

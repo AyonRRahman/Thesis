@@ -95,7 +95,7 @@ class UDepth(nn.Module):
         centers = centers.view(n, dout, 1, 1)
 
         pred = torch.sum(out * centers, dim=1, keepdim=True)
-        return bin_edges, pred
+        return range_attention_maps, pred
 
     def get_1x_lr_params(self):  # lr/10 learning rate
         return self.encoder.parameters()
@@ -140,8 +140,10 @@ class UDepth_SFM(nn.Module):
         super(UDepth_SFM, self).__init__()
         self.model = UDepth.build(n_bins=80, min_val=0.001, max_val=1, norm="linear")
         device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
+        # device = torch.device("cpu")
         self.return_attn = return_attn
         if rmi:
+            print('Using RMI')
             self.convert = RGB2RMI()
         else:
             self.convert = None
@@ -162,9 +164,12 @@ class UDepth_SFM(nn.Module):
             # print('converting')
             x = self.convert(x)
             
-        bin_edges, pred = self.model(x)
+        range_attention_maps, pred = self.model(x)
         pred = self.upsample(pred)
-        return [pred]
+        if self.return_attn:
+            return [pred], [self.upsample(range_attention_maps)]
+        else:
+            return [pred]
 
 
 if __name__ == '__main__':

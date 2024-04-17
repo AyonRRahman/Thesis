@@ -196,49 +196,29 @@ def main():
             )
 
     if not args.use_mask_for_train:
-        if not args.use_RMI:
-            print('not using RMI input space')
-            train_set = SequenceFolder(
-                args.data,
-                transform=train_transform,
-                seed=args.seed,
-                train=True,
-                sequence_length=args.sequence_length,
-                image_extention = args.image_extention
-            )
-            #Validation set is the same type as training set to measure photometric loss from warping
+    
+        print('not using RMI input space while loading')
+        train_set = SequenceFolder(
+            args.data,
+            transform=train_transform,
+            seed=args.seed,
+            train=True,
+            sequence_length=args.sequence_length,
+            image_extention = args.image_extention
+        )
+        #Validation set is the same type as training set to measure photometric loss from warping
 
-            # global val_set # to use it in the validation step to get the gt depth
+        # global val_set # to use it in the validation step to get the gt depth
 
-            val_set = SequenceFolder(
-                args.data,
-                transform=valid_transform,
-                seed=args.seed,
-                train=False,
-                sequence_length=args.sequence_length,
-                image_extention = args.image_extention
-            )
-        else:
-            print('using RMI input space')
-            train_set = SequenceFolderRMI(
-                args.data,
-                transform=train_transform,
-                seed=args.seed,
-                train=True,
-                sequence_length=args.sequence_length,
-                image_extention = args.image_extention
-            )
-            #Validation set is the same type as training set to measure photometric loss from warping
-
-            
-            val_set = SequenceFolderRMI(
-                args.data,
-                transform=valid_transform,
-                seed=args.seed,
-                train=False,
-                sequence_length=args.sequence_length,
-                image_extention = args.image_extention
-            )
+        val_set = SequenceFolder(
+            args.data,
+            transform=valid_transform,
+            seed=args.seed,
+            train=False,
+            sequence_length=args.sequence_length,
+            image_extention = args.image_extention
+        )
+    
     else:
         print('Using Masked Dataset')
         train_set = SequenceFolderMask(
@@ -261,14 +241,7 @@ def main():
             image_extention = args.image_extention
         )
 
-        # depth_val_set = SequenceFolder(
-        #         args.data,
-        #         transform=valid_transform,
-        #         seed=args.seed,
-        #         train=False,
-        #         sequence_length=args.sequence_length,
-        #         image_extention = args.image_extention
-        #     )
+       
 
 
     print('{} samples found in {} train scenes'.format(len(train_set), len(train_set.scenes)))
@@ -295,14 +268,14 @@ def main():
     from models.SFM.DispNetS import DispNetS
     from models.DepthAnything.DepthAnything import DepthAnythingSFM
     # from models.Udepth.udepth import UDepth_SFM
-    from models.udepth_model.udepth import UDepth_SFM
+    from train_only_depth.udepth_model.udepth import UDepth_SFM
     if args.depth_model=='dispnet':
         disp_net = DispNetS().to(device)
-    elif args.depth_model=='dpts':
+    elif args.depth_model=='udepth':
         # print('loading DepthAnything model')
         # disp_net = DepthAnythingSFM(encoder='vits').to(device)
         print('loading udepth')
-        disp_net = UDepth_SFM(True)
+        disp_net = UDepth_SFM(load_pretrained=True, rmi=args.use_RMI)
 
     from models.SC_SFM.PoseResNet import PoseResNet
     pose_net = PoseResNet(18, args.with_pretrain).to(device)
@@ -690,14 +663,19 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
             
             # print(ref_depths[0][0].shape)
 
-        elif args.depth_model=='dpts':
+        # elif args.depth_model=='udepth':
+        #     tgt_depth = disp_net(tgt_img)
+        #     ref_depths = []
+
+        #     for ref_img in ref_imgs:
+        #         ref_depth = disp_net(ref_img)
+        #         ref_depths.append(ref_depth)
+        elif args.depth_model=='udepth':
             tgt_depth = disp_net(tgt_img)
             ref_depths = []
-
             for ref_img in ref_imgs:
                 ref_depth = disp_net(ref_img)
                 ref_depths.append(ref_depth)
-
 
 
         if log_outputs and i < len(output_writers):
@@ -877,7 +855,7 @@ def validate_depth(depth_val_loader, disp_net, training_writer, args):
             tgt_depth = 1 / disp_net(tgt_img)
             predicted_depth = tgt_depth.squeeze().detach().cpu().numpy()
         
-        elif args.depth_model=='dpts':
+        elif args.depth_model=='udepth':
             tgt_depth = disp_net(tgt_img)
             predicted_depth = tgt_depth[0].squeeze().detach().cpu().numpy()
 
@@ -903,6 +881,28 @@ def compute_pose_with_inv(pose_net, tgt_img, ref_imgs):
 
     return poses, poses_inv
 
+# def compute_depth(disp_net, tgt_img, ref_imgs, args):
+#     # print(f"tgt_depth shape {disp_net(tgt_img).shape}")
+#     if args.depth_model=='dispnet':
+#         tgt_depth = [1/disp for disp in disp_net(tgt_img)]
+        
+#         ref_depths = []
+#         for ref_img in ref_imgs:
+#             ref_depth = [1/disp for disp in disp_net(ref_img)]
+#             ref_depths.append(ref_depth)
+
+#     elif args.depth_model=='udepth':
+#         # print(tgt_img.shape)
+#         tgt_depth = [disp for disp in disp_net(tgt_img)]
+
+#         ref_depths = []
+#         for ref_img in ref_imgs:
+#             # print(ref_img.shape)
+#             ref_depth = [disp for disp in disp_net(ref_img)]
+#             ref_depths.append(ref_depth)
+
+#     return tgt_depth, ref_depths
+
 def compute_depth(disp_net, tgt_img, ref_imgs, args):
     # print(f"tgt_depth shape {disp_net(tgt_img).shape}")
     if args.depth_model=='dispnet':
@@ -913,13 +913,11 @@ def compute_depth(disp_net, tgt_img, ref_imgs, args):
             ref_depth = [1/disp for disp in disp_net(ref_img)]
             ref_depths.append(ref_depth)
 
-    elif args.depth_model=='dpts':
-        # print(tgt_img.shape)
+    elif args.depth_model=='udepth':
+        
         tgt_depth = [disp for disp in disp_net(tgt_img)]
-
         ref_depths = []
         for ref_img in ref_imgs:
-            # print(ref_img.shape)
             ref_depth = [disp for disp in disp_net(ref_img)]
             ref_depths.append(ref_depth)
 
