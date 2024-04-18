@@ -5,8 +5,10 @@ Reference Code: https://github.com/shariqfarooq123/AdaBins
 """
 import torch
 import torch.nn as nn
-
-from .layers import PatchTransformerEncoder, PixelWiseDotProduct
+try:
+    from .layers import PatchTransformerEncoder, PixelWiseDotProduct
+except:
+    from layers import PatchTransformerEncoder, PixelWiseDotProduct
 
 
 class mViT(nn.Module):

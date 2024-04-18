@@ -133,7 +133,7 @@ def main():
 
     #initialize the models
     if args.depth_model == 'dispnet':
-        model = DispNetS()
+        model = DispNetS(rmi=args.RMI)
         total_param = sum(param.numel() for param in model.parameters())
         print(f"total disp net parameter {total_param/1e6}M")
     

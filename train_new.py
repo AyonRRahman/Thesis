@@ -73,7 +73,7 @@ parser.add_argument('--train_until_converge', action='store_true', help='train t
 parser.add_argument('--use_mask_for_train', action='store_true',
             help='new dataloader with mask will be used and the mask will be used to calculate the loss')
 
-parser.add_argument("--depth_model", default="dispnet", help="model to select. options: dpts, dptl, dptb, dispnet", type=str)
+parser.add_argument("--depth_model", default="dispnet",choices=['dispnet', 'udepth', 'dispnet_mvit'], help="model to select. options: dpts, dptl, dptb, dispnet, dispnet_mvit", type=str)
 
 val_depth_iter = 0
 best_error = -1
@@ -266,16 +266,23 @@ def main():
     
     #custom 
     from models.SFM.DispNetS import DispNetS
+    from models.SFM.DispNetS_mvit import DispNet_mvit
     from models.DepthAnything.DepthAnything import DepthAnythingSFM
     # from models.Udepth.udepth import UDepth_SFM
     from train_only_depth.udepth_model.udepth import UDepth_SFM
     if args.depth_model=='dispnet':
-        disp_net = DispNetS().to(device)
+        print('loading Dispnet')
+        disp_net = DispNetS(rmi = args.use_RMI).to(device)
+    
+    if args.depth_model=='dispnet_mvit':
+        print('loading dispnet mvit')
+        disp_net = DispNet_mvit(rmi = args.use_RMI).to(device)
+        
     elif args.depth_model=='udepth':
         # print('loading DepthAnything model')
         # disp_net = DepthAnythingSFM(encoder='vits').to(device)
         print('loading udepth')
-        disp_net = UDepth_SFM(load_pretrained=True, rmi=args.use_RMI)
+        disp_net = UDepth_SFM(load_pretrained=True, rmi=args.use_RMI).to(device)
 
     from models.SC_SFM.PoseResNet import PoseResNet
     pose_net = PoseResNet(18, args.with_pretrain).to(device)
@@ -670,7 +677,7 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
         #     for ref_img in ref_imgs:
         #         ref_depth = disp_net(ref_img)
         #         ref_depths.append(ref_depth)
-        elif args.depth_model=='udepth':
+        elif args.depth_model in ['udepth', 'dispnet_mvit']:
             tgt_depth = disp_net(tgt_img)
             ref_depths = []
             for ref_img in ref_imgs:
@@ -855,7 +862,7 @@ def validate_depth(depth_val_loader, disp_net, training_writer, args):
             tgt_depth = 1 / disp_net(tgt_img)
             predicted_depth = tgt_depth.squeeze().detach().cpu().numpy()
         
-        elif args.depth_model=='udepth':
+        elif args.depth_model in ['udepth', 'dispnet_mvit']:
             tgt_depth = disp_net(tgt_img)
             predicted_depth = tgt_depth[0].squeeze().detach().cpu().numpy()
 
@@ -913,11 +920,14 @@ def compute_depth(disp_net, tgt_img, ref_imgs, args):
             ref_depth = [1/disp for disp in disp_net(ref_img)]
             ref_depths.append(ref_depth)
 
-    elif args.depth_model=='udepth':
-        
+    elif args.depth_model in ['udepth', 'dispnet_mvit']:
+        # print(tgt_img.shape)
         tgt_depth = [disp for disp in disp_net(tgt_img)]
         ref_depths = []
         for ref_img in ref_imgs:
+            # print(ref_img.shape)
+
+            # print(disp_net(ref_img)[0].shape)
             ref_depth = [disp for disp in disp_net(ref_img)]
             ref_depths.append(ref_depth)
 

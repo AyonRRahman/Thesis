@@ -52,42 +52,16 @@ echo "RMI"
 # python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_actual_rmi_train/dispnet_checkpoint.pth.tar --RMI --max_depth 25
 
 start_value=20
-end_value=60
+end_value=100
 increment=5
 
 # Loop through each integer value from start to end with the specified increment
 for ((i=start_value; i<=end_value; i+=increment)); do
     echo "best: $i" 
     python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_actual_rmi_train/dispnet_model_best.pth.tar --RMI --max_depth $i
+    python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_rmi_train/dispnet_model_best.pth.tar --max_depth $i
+    python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/compare_new_train_without_mask/dispnet_model_best.pth.tar --max_depth $i
 done
-# echo "best 60"
-# python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_actual_rmi_train/dispnet_model_best.pth.tar --RMI --max_depth 60
-
-
-# echo "best 55"
-# python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_actual_rmi_train/dispnet_model_best.pth.tar --RMI --max_depth 55
-
-# echo "best 50"
-# python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_actual_rmi_train/dispnet_model_best.pth.tar --RMI --max_depth 50
-
-# echo "best 45"
-# python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_actual_rmi_train/dispnet_model_best.pth.tar --RMI --max_depth 45
-
-
-# echo "best 40"
-# python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_actual_rmi_train/dispnet_model_best.pth.tar --RMI --max_depth 40
-
-# echo "best 35"
-# python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_actual_rmi_train/dispnet_model_best.pth.tar --RMI --max_depth 35
-
-# echo "best 30"
-# python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_actual_rmi_train/dispnet_model_best.pth.tar --RMI --max_depth 30
-
-# echo "best 25"
-# python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_actual_rmi_train/dispnet_model_best.pth.tar --RMI --max_depth 25
-
-# echo "best 20"
-# python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_actual_rmi_train/dispnet_model_best.pth.tar --RMI --max_depth 20
 
 # echo "================"
 # echo "Varos"

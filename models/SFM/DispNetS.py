@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torch.nn.init import xavier_uniform_, zeros_
+import torchvision  
 
 
 def downsample_conv(in_planes, out_planes, kernel_size=3):
@@ -39,10 +40,26 @@ def crop_like(input, ref):
     return input[:, :, :ref.size(2), :ref.size(3)]
 
 
+class RGB2RMI(nn.Module):
+    '''module to convert RGB images into RMI input spaces. takes input channel first(B, C, H, W)'''
+    def __init__(self):
+        super(RGB2RMI, self).__init__()
+    
+    def forward(self, img):
+        gray = torchvision.transforms.functional.rgb_to_grayscale(img).squeeze(1)
+        r,g,b = img[:,0,:,:], img[:,1,:,:],img[:,2,:,:]
+        max_tensor = torch.stack((g, b), dim=0).max(dim=0)[0]
+        return torch.stack((r,max_tensor,gray), dim=1)
+
 class DispNetS(nn.Module):
 
-    def __init__(self, alpha=10, beta=0.01):
+    def __init__(self, alpha=10, beta=0.01, rmi = False):
         super(DispNetS, self).__init__()
+        if rmi:
+            print('Using RMI')
+            self.convert = RGB2RMI()
+        else:
+            self.convert = None
 
         self.alpha = alpha
         self.beta = beta
@@ -86,6 +103,9 @@ class DispNetS(nn.Module):
                     zeros_(m.bias)
 
     def forward(self, x):
+        if self.convert is not None:
+            x = self.convert(x)
+        
         out_conv1 = self.conv1(x)
         out_conv2 = self.conv2(out_conv1)
         out_conv3 = self.conv3(out_conv2)

@@ -5,7 +5,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-from .miniViT import mViT
+try:
+    from .miniViT import mViT
+except:
+    from miniViT import mViT
+    
 import torchvision
 
 class UpSample(nn.Sequential):
