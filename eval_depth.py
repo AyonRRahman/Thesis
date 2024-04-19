@@ -27,6 +27,8 @@ parser.add_argument("--saved_model", default=None, type=str)
 parser.add_argument("--RMI", action='store_true', help="Will use RMI input space for images")
 parser.add_argument("--max_depth", default=0, type=float, help="maximum depth to mask the gt depth")
 parser.add_argument("--calculate_inference_time", action='store_true', help="calculate the avg inference time of the model")
+parser.add_argument("--save_file_name", default="depth_eval_result.csv",help="file name for saving the results")
+parser.add_argument("--rescale_img", action="store_true", help='rescale images and depths to half the size')
 ######################################################
 
 
@@ -114,8 +116,8 @@ def load_gt_depth(filename):
 
     return gt_depth
 
-def main():
-    args = parser.parse_args()
+def main(args):
+    
     device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     print(f'found device {device}')
 
@@ -129,7 +131,7 @@ def main():
     assert len(image_list)==len(depth_list)
 
     #check correct model name given:
-    assert args.depth_model in ['dpts', 'dptl', 'dptb', 'dispnet','udepth'], "correct model name not given"
+    assert args.depth_model in ['dpts', 'dptl', 'dptb', 'dispnet','udepth','dispnet_mvit'], "correct model name not given"
 
     #initialize the models
     if args.depth_model == 'dispnet':
@@ -177,10 +179,15 @@ def main():
     skipped = 0
     for i,(image, depth) in tqdm(enumerate(zip(image_list, depth_list))):
         
-        img = load_tensor_image(image).to(device)
-        
-        gt_depth = load_tensor_image(depth).to(device)
+        img = load_tensor_image(image).to(device)        
         gt_depth = load_gt_depth(depth)
+        if args.rescale_img:
+            # print(img.shape)
+            # print(gt_depth.shape)
+            img = torch.nn.functional.upsample(img, scale_factor=0.5, mode='bilinear')
+            gt_depth = torch.nn.functional.upsample(torch.from_numpy(gt_depth).unsqueeze(0).unsqueeze(0), scale_factor=0.5, mode='nearest').squeeze().numpy()
+            # print(img.shape)
+            # print(gt_depth.shape)
         if args.depth_model == 'dispnet':
             pred_depth = model(img).cpu().squeeze().detach().numpy()
         else:
@@ -234,7 +241,10 @@ def main():
 
 if __name__=='__main__':
     from csv import writer
-    csv_file = 'depth_eval_result.csv'
+    args = parser.parse_args()
+    
+    csv_file = args.save_file_name
+    
     if not os.path.exists(csv_file):
         row = ['model', 'RMI', 'epoch','max_depth', 'abs_rel_tot', 'sq_rel_tot', 'log_10_tot', 'rmse_tot', 'rmse_log_tot', 'a1_tot', 'a2_tot', 'a3_tot']
         with open(csv_file, 'w') as f_object:
@@ -247,7 +257,7 @@ if __name__=='__main__':
             # Close the file object
             f_object.close()
 
-    model, RMI, epoch, max_depth, abs_rel_tot, sq_rel_tot, log_10_tot, rmse_tot, rmse_log_tot, a1_tot, a2_tot, a3_tot = main()
+    model, RMI, epoch, max_depth, abs_rel_tot, sq_rel_tot, log_10_tot, rmse_tot, rmse_log_tot, a1_tot, a2_tot, a3_tot = main(args)
     
     print(f"result: abs_rel={abs_rel_tot}, sq_rel={sq_rel_tot},log_10={log_10_tot}, rmse={rmse_tot}, rmse_log ={rmse_log_tot}, a1 = {a1_tot}, a2 = {a2_tot}, a3 = {a3_tot}")
 

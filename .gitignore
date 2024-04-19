@@ -37,3 +37,5 @@ data/Eiffel_tower_ready_small_set/*
 /checkpoints_experiment/*
 /checkpoints_old/*
 /train_only_depth/saved_models_experiment/*
+/Image_enhancement_result/*
+/*.csv

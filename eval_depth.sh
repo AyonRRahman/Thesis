@@ -58,9 +58,20 @@ increment=5
 # Loop through each integer value from start to end with the specified increment
 for ((i=start_value; i<=end_value; i+=increment)); do
     echo "best: $i" 
-    python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_actual_rmi_train/dispnet_model_best.pth.tar --RMI --max_depth $i
-    python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_rmi_train/dispnet_model_best.pth.tar --max_depth $i
-    python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/compare_new_train_without_mask/dispnet_model_best.pth.tar --max_depth $i
+    python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_actual_rmi_train/dispnet_model_best.pth.tar --RMI --max_depth $i \
+    --gt_depth /home/mundus/mrahman527/Varos/2021-08-17_SEQ1/vehicle0/cam0/D \
+    --img_dir /home/mundus/mrahman527/Varos/2021-08-17_SEQ1/vehicle0/cam0/A --save_file_name varos_depth_result.csv --rescale_img
+
+    python eval_depth.py --scale --depth_model udepth --saved_model saved_models/udepth_rmi_train/dispnet_model_best.pth.tar --max_depth $i \
+    --gt_depth /home/mundus/mrahman527/Varos/2021-08-17_SEQ1/vehicle0/cam0/D \
+    --img_dir /home/mundus/mrahman527/Varos/2021-08-17_SEQ1/vehicle0/cam0/A --save_file_name varos_depth_result.csv --rescale_img
+
+
+    python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/compare_new_train_without_mask/dispnet_model_best.pth.tar --max_depth $i \
+    --gt_depth /home/mundus/mrahman527/Varos/2021-08-17_SEQ1/vehicle0/cam0/D \
+    --img_dir /home/mundus/mrahman527/Varos/2021-08-17_SEQ1/vehicle0/cam0/A --save_file_name varos_depth_result.csv --rescale_img
+
+    
 done
 
 # echo "================"
