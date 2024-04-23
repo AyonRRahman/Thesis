@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import cv2
 
 from models.SFM.DispNetS import DispNetS
+from models.SFM.DispNetS_mvit import DispNet_mvit
 from models.DepthAnything.DepthAnything import DepthAnythingSFM
 from train_only_depth.udepth_model.udepth import UDepth_SFM
 
@@ -138,16 +139,19 @@ def main(args):
         model = DispNetS(rmi=args.RMI)
         total_param = sum(param.numel() for param in model.parameters())
         print(f"total disp net parameter {total_param/1e6}M")
-    
-    elif args.depth_model == 'dpts':
-        model = DepthAnythingSFM(encoder='vits')
-    elif args.depth_model == 'dptl':
-        model = DepthAnythingSFM(encoder='vitl')
-    elif args.depth_model == 'dptb':
-        model = DepthAnythingSFM(encoder='vitb')
+    elif args.depth_model=='dispnet_mvit':
+        print('loading dispnet mvit')
+        model = DispNet_mvit(rmi=args.RMI).to(device)
     elif args.depth_model=='udepth':
         model = UDepth_SFM(load_pretrained=True, rmi=args.RMI)
 
+    # elif args.depth_model == 'dpts':
+    #     model = DepthAnythingSFM(encoder='vits')
+    # elif args.depth_model == 'dptl':
+    #     model = DepthAnythingSFM(encoder='vitl')
+    # elif args.depth_model == 'dptb':
+    #     model = DepthAnythingSFM(encoder='vitb')
+    
     model.to(device)
     #load saved model
     if args.saved_model is not None:

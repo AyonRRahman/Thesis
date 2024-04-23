@@ -392,8 +392,8 @@ def scale(img):
     return (img - np.min(img)) / (np.max(img) - np.min(img))
 
 def run_pipeline(img, depths, args):
-    print(img.shape)
-    print(depths.shape)
+    # print(img.shape)
+    # print(depths.shape)
     if 'output_graphs' not in args:
         args.output_graphs = False
     if args.output_graphs:

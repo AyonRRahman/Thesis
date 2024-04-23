@@ -22,7 +22,7 @@ def rmetrics(a,b):
     
     #pnsr
     mse = np.mean((a-b)**2)
-    psnr = 10*math.log10(1/mse)
+    psnr = 20*math.log10(255/math.sqrt(mse))
 
     #ssim
     ssim = compare_ssim(a,b,channel_axis=2)

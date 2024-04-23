@@ -19,7 +19,7 @@ from models.DepthAnything.DepthAnything import DepthAnythingSFM
 from train_only_depth.udepth_model.udepth import UDepth_SFM
 
 from utils.eval import median_of_non_zero_values
-
+from csv import DictWriter
 
 #sea_through
 from train_only_depth.seathru import run_pipeline
@@ -123,6 +123,9 @@ def main(args):
     ssim_tot=0 
     uiqm_tot=0
     uciqe_tot=0
+    N = 0
+    field_names = ['image', 'psnr', 'ssim', 'uiqm','uiqm_or', 'uciqe', 'uciqe_or']
+
     for i,(image, depth) in tqdm(enumerate(zip(image_list, depth_list))):
         
         img = load_tensor_image(image).to(device)        
@@ -143,33 +146,48 @@ def main(args):
         img = img.detach().cpu().numpy().squeeze()
         img = np.moveaxis(img, 0, -1)
 
-
-        recovered = run_pipeline(img*0.5+0.5, pred_depth, sea_thru_args)
-
+        try:
+            recovered = run_pipeline(img*0.5+0.5, pred_depth, sea_thru_args)
+        except:
+            continue
         #convert to uint8 type
         recovered = (recovered*255).astype(np.uint8)
         img = (img*255).astype(np.uint8)
+        try:
+            psnr,ssim = rmetrics(recovered,img)
+            uiqm,uciqe = nmetrics(recovered)
+            uiqm_or, uciqe_or = nmetrics(img)
+        except:
+            continue
         
-        psnr,ssim = rmetrics(recovered,img)
-        uiqm,uciqe = nmetrics(recovered)
-        
+        N+=1        
         psnr_tot+=psnr
         ssim_tot+=ssim
         uiqm_tot+=uiqm
         uciqe_tot+=uciqe
 
+        print(f"{image.split('/')[-1]}: \npsnr={psnr}, ssim={ssim}, uiqm={uiqm}, uiqm_or={uiqm_or} uciqe={uciqe}, uciqe_or = {uciqe_or}")
+        #result logging
+        dict = {'image':image.split('/')[-1], 'psnr':psnr, 'ssim':ssim, 'uiqm':uiqm,'uiqm_or':uiqm_or, 'uciqe':uciqe,'uciqe_or':uciqe_or}
+        
+        with open(save_path/'result.csv', 'a') as f_object:
+            dictwriter_object = DictWriter(f_object, fieldnames=field_names)
+            # Pass the dictionary as an argument to the Writerow()
+            dictwriter_object.writerow(dict)
+            # Close the file object
+            f_object.close()
+
+
         if args.save_freq!=0 and i%args.save_freq==0:
             plt.imsave(save_path/('recovered_'+image.split('/')[-1]), recovered)
 
     
-
-    return psnr_tot/(i+1), ssim_tot/(i+1), uiqm_tot/(i+1), uciqe_tot/(i+1)
+    with open(save_path/'result.txt', 'w') as f:
+        f.write(f'psnr={psnr_tot/(N)}, ssim={ssim_tot/(N)}, uiqm={uiqm_tot/(N)}, uicqe={uciqe_tot/(N)}')
+    print(f"total={i+1}, done={N}")
+    return psnr_tot/(N), ssim_tot/(N), uiqm_tot/(N), uciqe_tot/(N)
 
         
-
-    
-    # return args.depth_model ,args.RMI, epoch, args.max_depth, abs_rel_tot/(len(image_list)-skipped), sq_rel_tot/(len(image_list)-skipped), log10_tot/(len(image_list)-skipped), rmse_tot/(len(image_list)-skipped), rmse_log_tot/(len(image_list)-skipped), a1_tot/(len(image_list)-skipped), a2_tot/(len(image_list)-skipped), a3_tot/(len(image_list)-skipped)
-
 
 if __name__=='__main__':
     args = parser.parse_args()
