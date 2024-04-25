@@ -12,6 +12,7 @@ import matplotlib.pyplot as plt
 import cv2
 from datetime import datetime
 
+from skimage import exposure
 
 #models
 from models.SFM.DispNetS import DispNetS
@@ -43,7 +44,7 @@ class Args(argparse.Namespace):
     l = 0.5
     p = 0.01
     min_depth = 0.01
-    max_depth = 1
+    max_depth = 0.4
     spread_data_fraction = 0.01
     # size = 320
 
@@ -70,10 +71,10 @@ def main(args):
     image_dir = Path(args.img_dir)
     depth_dir = Path(args.gt_depth)
     assert os.path.exists(image_dir) and os.path.exists(depth_dir), 'image or depth directory invalid'
-    image_list = sorted(image_dir.glob('*.png'))
+    image_list = (image_dir.glob('*.png'))
     depth_list = sorted(depth_dir.glob('*.png'))
 
-    assert len(image_list)==len(depth_list)
+    # assert len(image_list)==len(depth_list)
 
     #check correct model name given:
     assert args.depth_model in ['dpts', 'dptl', 'dptb', 'dispnet','udepth','dispnet_mvit'], "correct model name not given"
@@ -129,11 +130,11 @@ def main(args):
     for i,(image, depth) in tqdm(enumerate(zip(image_list, depth_list))):
         
         img = load_tensor_image(image).to(device)        
-        gt_depth = load_gt_depth(depth)
+        # gt_depth = load_gt_depth(depth)
         
         if args.rescale_img:
-            img = torch.nn.functional.upsample(img, scale_factor=0.5, mode='bilinear')
-            gt_depth = torch.nn.functional.upsample(torch.from_numpy(gt_depth).unsqueeze(0).unsqueeze(0), scale_factor=0.5, mode='nearest').squeeze().numpy()
+            img = torch.nn.functional.upsample(img, scale_factor=0.75, mode='bilinear')
+            # gt_depth = torch.nn.functional.upsample(torch.from_numpy(gt_depth).unsqueeze(0).unsqueeze(0), scale_factor=0.5, mode='nearest').squeeze().numpy()
 
         if args.depth_model == 'dispnet':
             pred_depth = model(img).cpu().squeeze().detach().numpy()
@@ -142,22 +143,46 @@ def main(args):
         else:
             pred_depth = model(img)[0].cpu().squeeze().detach().numpy()
             pred_depth = pred_depth
-
+        
+        # print(img.shape)
         img = img.detach().cpu().numpy().squeeze()
         img = np.moveaxis(img, 0, -1)
-
+        img = exposure.equalize_adapthist(img*0.5 + 0.5, clip_limit=0.03)
         try:
-            recovered = run_pipeline(img*0.5+0.5, pred_depth, sea_thru_args)
-        except:
+            depths = pred_depth
+            depths = ((depths - np.min(depths)) / (
+                np.max(depths) - np.min(depths))).astype(np.float32)
+            # depths = depths + 0.01
+            mask = (depths>=0.4).astype(int)
+            depths = mask*depths
+            recovered = run_pipeline(img, depths, sea_thru_args)
+
+
+        except Exception as e:
+            print('-------')
+            print(e)
+            print(img.max(), img.min())
+            print('-------')
+
             continue
         #convert to uint8 type
         recovered = (recovered*255).astype(np.uint8)
         img = (img*255).astype(np.uint8)
         try:
             psnr,ssim = rmetrics(recovered,img)
+            
             uiqm,uciqe = nmetrics(recovered)
             uiqm_or, uciqe_or = nmetrics(img)
-        except:
+            print(f"{image.split('/')[-1]}: uiqm={uiqm}, uiqm_or={uiqm_or} uciqe={uciqe}, uciqe_or = {uciqe_or}")
+
+            # print(uiqm, uiqm_or)
+            # print(uciqe, uciqe_or)
+        except Exception as e:
+            print('-------')
+            print(e)
+            print('-------')
+
+            
             continue
         
         N+=1        
@@ -166,8 +191,8 @@ def main(args):
         uiqm_tot+=uiqm
         uciqe_tot+=uciqe
 
-        print(f"{image.split('/')[-1]}: \npsnr={psnr}, ssim={ssim}, uiqm={uiqm}, uiqm_or={uiqm_or} uciqe={uciqe}, uciqe_or = {uciqe_or}")
         #result logging
+        #uiqm or is the original images uiqm before recovering. same for uciqe
         dict = {'image':image.split('/')[-1], 'psnr':psnr, 'ssim':ssim, 'uiqm':uiqm,'uiqm_or':uiqm_or, 'uciqe':uciqe,'uciqe_or':uciqe_or}
         
         with open(save_path/'result.csv', 'a') as f_object:

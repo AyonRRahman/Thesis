@@ -35,34 +35,17 @@ parser.add_argument("--rotation-mode", default='euler', choices=['euler', 'quat'
 parser.add_argument("--sequence", default='2015', type=str, help="sequence to test")
 parser.add_argument("--use_best", action='store_true', help='use best model instead of last checkpoint.')
 parser.add_argument("--name", type=str, help="folder to save the output in output-dir")
-parser.add_argument("--use_RMI", action='store_true', help="use RMI input space")
 
 device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
 
 # device = torch.device("cpu")
-def load_as_RMI(filename):
-    image = imread(filename).astype(np.uint8)
-    r, g, b = image[:,:,0], image[:,:,1], image[:,:,2]
-    # Compute R channel
-    # r = np.array(r)
-    # Compute M channel
-    gb_max = np.maximum.reduce([g, b])
-    # Compute I channel
-    gray_c = np.array(ImageOps.grayscale(Image.fromarray(image)))
-    # Combine three channels
-    combined = np.stack((r, gb_max, gray_c), axis=-1)
-    return combined
 
 def load_tensor_image(filename, args):
-    if args.use_RMI:
-        img = load_as_RMI(filename).astype(np.float32)
-    else:
-        img = imread(filename).astype(np.float32)
-    
-    h, w, _ = img.shape
-    
+    img = imread(filename).astype(np.float32)
+    # h, w, _ = img.shape    
     img = np.transpose(img, (2, 0, 1))
     tensor_img = ((torch.from_numpy(img).unsqueeze(0)/255-0.5)/0.5).to(device)
+
     return tensor_img
 
 
@@ -84,7 +67,7 @@ def main():
         weights_pose = torch.load(posenet_saved_path, map_location=device)
         
     pose_net = PoseResNet().to(device)
-    print(f'loading model from epoch{weights_pose['epoch']}')
+    print(f'loading model from epoch {weights_pose["epoch"]}')
     pose_net.load_state_dict(weights_pose['state_dict'], strict=False)
     pose_net.eval()
 
@@ -102,8 +85,6 @@ def main():
 
     n = len(test_files)
     tensor_img1 = load_tensor_image(test_files[0], args)
-    if args.use_RMI:
-        print('loading as RMI input space')
         
     for iter in tqdm(range(n - 1)):
 

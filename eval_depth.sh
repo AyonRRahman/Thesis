@@ -77,12 +77,20 @@ for ((i=start_value; i<=end_value; i+=increment)); do
     # python eval_depth.py --scale --depth_model dispnet_mvit --saved_model saved_models/dispnet_mvit_rmi/dispnet_model_best.pth.tar --max_depth $i --RMI\
     # --save_file_name depth_eval_result_eiffel.csv --calculate_inference_time
     
-    python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/dispnet_rmi/dispnet_model_best.pth.tar --max_depth $i --RMI\
+    # python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/dispnet_rmi/dispnet_model_best.pth.tar --max_depth $i --RMI\
+    # --gt_depth /home/mundus/mrahman527/Varos/2021-08-17_SEQ1/vehicle0/cam0/D \
+    # --img_dir /home/mundus/mrahman527/Varos/2021-08-17_SEQ1/vehicle0/cam0/A --save_file_name varos_depth_result.csv --rescale_img 
+   
+    # python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/dispnet_rmi/dispnet_model_best.pth.tar --max_depth $i --RMI\
+    # --save_file_name depth_eval_result_eiffel.csv 
+    
+    
+    python eval_depth.py --scale --depth_model dispnet_mvit --saved_model saved_models/dispnet_mvit_rgb/dispnet_model_best.pth.tar --max_depth $i \
     --gt_depth /home/mundus/mrahman527/Varos/2021-08-17_SEQ1/vehicle0/cam0/D \
     --img_dir /home/mundus/mrahman527/Varos/2021-08-17_SEQ1/vehicle0/cam0/A --save_file_name varos_depth_result.csv --rescale_img 
    
-    python eval_depth.py --scale --depth_model dispnet --saved_model saved_models/dispnet_rmi/dispnet_model_best.pth.tar --max_depth $i --RMI\
-    --save_file_name depth_eval_result_eiffel.csv 
+    python eval_depth.py --scale --depth_model dispnet_mvit --saved_model saved_models/dispnet_mvit_rgb/dispnet_model_best.pth.tar --max_depth $i\
+    --save_file_name depth_eval_result_eiffel.csv --calculate_inference_time
     
 done
 
