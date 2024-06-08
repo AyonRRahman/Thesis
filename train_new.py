@@ -680,6 +680,8 @@ def validate_without_gt(args, val_loader, disp_net, pose_net, epoch, logger, out
         elif args.depth_model in ['udepth', 'dispnet_mvit']:
             tgt_depth = disp_net(tgt_img)
             ref_depths = []
+
+            
             for ref_img in ref_imgs:
                 ref_depth = disp_net(ref_img)
                 ref_depths.append(ref_depth)

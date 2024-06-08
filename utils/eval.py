@@ -126,6 +126,14 @@ def align_and_transform(gt_pose_se3, pred_pose_se3):
 
     return transformed_final 
 
+
+
+def remove_items(test_list, item=''): 
+  
+    # using list comprehension to perform the task 
+    res = [i for i in test_list if i != item] 
+    return res 
+
 def align_trajectory(predicted_pose_file, gt_pose_file, seq_length = 5):
     '''
     takes path of two txt file containing predicted and ground truth pose.
@@ -159,8 +167,16 @@ def align_trajectory(predicted_pose_file, gt_pose_file, seq_length = 5):
     
     transformed_pred = np.zeros((3,1))
     for i, (gt_line, pred_line) in enumerate(zip(gt_file, prediction_file)):
+        # print(i)
+        # print(gt_line)
+        # print(type(gt_line))
+        # print(gt_line.split(' '))
+        split_gt_line = gt_line.split(' ')
+        # print(split_gt_line)
 
-        gt_pose = np.array(gt_line.split(' ')).astype(float).reshape(3,4)
+        split_gt_line = remove_items(split_gt_line)
+        # print(split_gt_line)
+        gt_pose = np.array(split_gt_line).astype(float).reshape(3,4)
         gt_pose_se3.append(np.concatenate((gt_pose,np.array([0,0,0,1]).reshape(1,4)),axis=0))
 
         pred_pose = np.array(pred_line.split(' ')).astype(float).reshape(3,4)

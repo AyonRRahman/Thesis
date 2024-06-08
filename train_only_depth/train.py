@@ -35,7 +35,13 @@ from utils.eval import mean_squared_error_depth
 from utils_SC import tensor2array, save_checkpoint
 import custom_transforms as custom_SC
 
+from inverse_warp import pose_vec2mat
+#kornia
+from kornia.feature import *
+import kornia
+from kornia.color import rgb_to_grayscale
 
+from scipy.spatial.transform import Rotation  as Rot
 ### arg parser
 parser = argparse.ArgumentParser(description='Structure from Motion Learner training on Eiffel-Tower Dataset',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -386,7 +392,7 @@ def main():
     #set parameters based on the training mode and del other model to free memory
     if args.train=='both':
         optim_params = [
-            {'params': disp_net.parameters(), 'lr': args.lr},
+            # {'params': disp_net.parameters(), 'lr': args.lr},
             {'params': pose_net.parameters(), 'lr': args.lr}
         ]
 
@@ -400,7 +406,6 @@ def main():
         weights = torch.load('/mundus/mrahman527/Thesis/saved_models/compare_new_train_with_mask/exp_pose_model_best.pth.tar',map_location=device)
         pose_net.load_state_dict(weights['state_dict'], strict=False)
         # pose_net = torch.nn.DataParallel(pose_net)
-
 
     elif args.train=='pose':
         optim_params = [
@@ -434,7 +439,7 @@ def main():
     # print('-----'*10)
     for epoch in range(args.epochs):
         logger.epoch_bar.update(epoch)
-        
+
         if args.continue_training and epoch_skip!=0:
             if epoch<=epoch_skip:
                 n_iter+= len(train_loader)
@@ -451,7 +456,7 @@ def main():
         elif args.train=='both':
             if args.use_mask_from_attn and args.depth_model=='udepth':
                 train_loss = train_both_attn_mask(args, train_loader, disp_net,pose_net, optimizer, args.epoch_size, logger, training_writer)
-        
+
             else:
                 train_loss = train_both(args, train_loader, disp_net,pose_net, optimizer, args.epoch_size, logger, training_writer)
             
@@ -546,8 +551,7 @@ def main():
                     'state_dict': pose_net.state_dict()
                 },
                 is_best)
-            
-        
+
         
         with open(args.save_path/args.log_summary, 'a') as csvfile:
             writer = csv.writer(csvfile, delimiter='\t')
@@ -673,7 +677,8 @@ def train_both(args, train_loader, disp_net, pose_net, optimizer, epoch_size, lo
     losses = AverageMeter(precision=4)
     
     # switch to train mode
-    disp_net.train()
+    # disp_net.train()
+    disp_net.eval()
     pose_net.train()
 
     end = time.time()
@@ -694,17 +699,32 @@ def train_both(args, train_loader, disp_net, pose_net, optimizer, epoch_size, lo
         # poses = [pose.to(device) for pose in data_sample['poses']]  #src_t_tgt
         # poses_inv = [inv_pose.to(device) for inv_pose in data_sample['inv_poses']]
 
-        tgt_mask = data_sample['tgt_mask'].to(device)
-        ref_masks = [mask.to(device) for mask in data_sample['ref_masks']]
+        # tgt_mask = data_sample['tgt_mask'].to(device)
+        # ref_masks = [mask.to(device) for mask in data_sample['ref_masks']]
         
 
         
         # compute output
-        tgt_depth, ref_depths = compute_depth(disp_net, tgt_img, ref_imgs, args)
+        # tgt_depth, ref_depths = compute_depth(disp_net, tgt_img, ref_imgs, args)
+        if args.depth_model=='dispnet':
+            tgt_depth = [1 / disp_net(tgt_img)]
+            ref_depths = []
+            for ref_img in ref_imgs:
+                ref_depth = [1 / disp_net(ref_img)]
+                ref_depths.append(ref_depth)
+
+        elif args.depth_model=='udepth':
+            tgt_depth = disp_net(tgt_img)
+            ref_depths = []
+            for ref_img in ref_imgs:
+                ref_depth = disp_net(ref_img)
+                ref_depths.append(ref_depth)
+
+        args.pose_inconsistency = True
+        poses, poses_inv, pose_inconsistency = compute_pose_with_inv(pose_net, tgt_img, ref_imgs, args)
         
-        poses, poses_inv = compute_pose_with_inv(pose_net, tgt_img, ref_imgs)
-        
-        
+        print('train pose_inconsistency:',pose_inconsistency.item())
+
         if args.use_gt_mask:
             loss_1, loss_3 = compute_photo_and_geometry_loss(tgt_img, ref_imgs, intrinsics, tgt_depth, ref_depths,
                                                          poses, poses_inv, args.num_scales, args.with_ssim,
@@ -718,12 +738,13 @@ def train_both(args, train_loader, disp_net, pose_net, optimizer, epoch_size, lo
 
         loss_2 = compute_smooth_loss(tgt_depth, tgt_img, ref_depths, ref_imgs)
 
-        loss = w1*loss_1 + w2*loss_2 + w3*loss_3
+        loss = w1*loss_1 + w2*loss_2 + w3*loss_3 + pose_inconsistency
         
         if log_losses:
             train_writer.add_scalar('photometric_error', loss_1.item(), n_iter)
             train_writer.add_scalar('disparity_smoothness_loss', loss_2.item(), n_iter)
             train_writer.add_scalar('geometry_consistency_loss', loss_3.item(), n_iter)
+            train_writer.add_scalar('pose_inconsistency', pose_inconsistency, n_iter)
             train_writer.add_scalar('total_loss', loss.item(), n_iter)
 
         # record loss and EPE
@@ -1195,7 +1216,7 @@ def validate_train_depth(args, val_loader, disp_net, pose_net, epoch, logger, ou
     logger.valid_bar.update(len(val_loader))
     return losses.avg, ['Total loss', 'Photo loss', 'Smooth loss', 'Consistency loss']
 
-
+val_iter = 0
 @torch.no_grad()
 def validate_train_both(args, val_loader, disp_net, pose_net, epoch, logger, output_writers):
     global device
@@ -1212,6 +1233,8 @@ def validate_train_both(args, val_loader, disp_net, pose_net, epoch, logger, out
 
     end = time.time()
     logger.valid_bar.update(0)
+    global val_iter
+    pose_inconsistency_loss = 0
     for i,data_sample in enumerate(val_loader):
         tgt_img = data_sample['tgt_img'].to(device)
         ref_imgs = [img.to(device) for img in data_sample['ref_imgs']]
@@ -1221,14 +1244,25 @@ def validate_train_both(args, val_loader, disp_net, pose_net, epoch, logger, out
         # poses = [pose.to(device) for pose in data_sample['poses']]  #src_t_tgt
         # poses_inv = [inv_pose.to(device) for inv_pose in data_sample['inv_poses']]
 
-        tgt_mask = data_sample['tgt_mask'].to(device)
-        ref_masks = [mask.to(device) for mask in data_sample['ref_masks']]
+        # tgt_mask = data_sample['tgt_mask'].to(device)
+        # ref_masks = [mask.to(device) for mask in data_sample['ref_masks']]
         
         # compute output
         # tgt_depth, ref_depths = compute_depth(disp_net, tgt_img, ref_imgs, args)
         
-        poses, poses_inv = compute_pose_with_inv(pose_net, tgt_img, ref_imgs)
+        poses, poses_inv, pose_inconsistency = compute_pose_with_inv(pose_net, tgt_img, ref_imgs, args)
+        # print('val pose_inconsistency:',pose_inconsistency.item())
         
+        pose_inconsistency_loss += pose_inconsistency.item()
+
+        output_writers[0].add_scalar('val pose_inconsistency',pose_inconsistency.item(),val_iter)
+        val_iter+=1
+        # calc_loss = 0
+        
+        # for i in range(len(poses)):
+        #     pose_calc = get_pose(ref_imgs[i], tgt_img, intrinsics)
+        #     calc_loss += torch.sum(pose_calc - poses[i])
+    
         if args.depth_model=='dispnet':
             tgt_depth = [1 / disp_net(tgt_img)]
             ref_depths = []
@@ -1256,7 +1290,7 @@ def validate_train_both(args, val_loader, disp_net, pose_net, epoch, logger, out
                 
                 depth_image = load_as_float(depth_file_name)
                 depth_image = np.transpose(depth_image, (2, 0, 1))
-                print(depth_image.shape)
+                # print(depth_image.shape)
                 depth_image = depth_image/depth_image.max()
                 output_writers[i].add_image('gt depth', tensor2array(torch.tensor(depth_image), max_value=None, colormap='magma'), 0)
                 
@@ -1285,11 +1319,11 @@ def validate_train_both(args, val_loader, disp_net, pose_net, epoch, logger, out
         loss_1 = loss_1.item()
         loss_2 = loss_2.item()
         loss_3 = loss_3.item()
-
+        # calc_loss = calc_loss.item()
         
         #making sure to stop calculating the weights gradients.
         with torch.no_grad():
-            loss = w1*loss_1 + w2*loss_2 + w3*loss_3
+            loss = w1*loss_1 + w2*loss_2 + w3*loss_3 + pose_inconsistency.item()
             
         # loss = loss_1
         losses.update([loss, loss_1, loss_2, loss_3])
@@ -1303,6 +1337,8 @@ def validate_train_both(args, val_loader, disp_net, pose_net, epoch, logger, out
 
         
     logger.valid_bar.update(len(val_loader))
+    output_writers[0].add_scalar('val total pose_inconsistency', pose_inconsistency_loss, epoch)
+    
     return losses.avg, ['Total loss', 'Photo loss', 'Smooth loss', 'Consistency loss']
 
 @torch.no_grad()
@@ -1461,13 +1497,59 @@ def validate_depth(depth_val_loader, disp_net, training_writer, args):
         
     return total_mse_loss/len(depth_val_loader)
 
+def get_poses_inconsistency(poses):
+    '''
+    args:
+        poses:-> list of ref_t_tgt
+    '''
+    global device
+    batch = poses[0].shape[0]
 
-def compute_pose_with_inv(pose_net, tgt_img, ref_imgs):
+    w_t_tgt = (torch.eye(4)).unsqueeze(0)
+    w_t_tgt = w_t_tgt.repeat(batch,1,1).to(device)
+    
+    w_t_refs = [] 
+    tensor = torch.tensor([[0, 0, 0, 1]]).to(device)
+    batch_tensor = tensor.unsqueeze(0)
+    repeated_tensor = batch_tensor.repeat(batch, 1, 1).to(device)
+    
+
+    for ref_t_tgt in poses:
+        to_inverse = torch.cat((pose_vec2mat(ref_t_tgt),repeated_tensor),1)
+        
+        w_t_ref = w_t_tgt @ torch.inverse(to_inverse)
+        # print(w_t_ref.shape)
+        w_t_refs.append(w_t_ref)
+    
+    w_t_ref1 = w_t_refs[0]
+    w_t_ref2 = w_t_refs[1]
+
+    ref1_t_ref2 = torch.inverse(w_t_ref1)@w_t_ref2
+    return ref1_t_ref2
+
+def compute_pose_with_inv(pose_net, tgt_img, ref_imgs, args = None):
+    global device
     poses = []
     poses_inv = []
     for ref_img in ref_imgs:
-        poses.append(pose_net(tgt_img, ref_img))
+        poses.append(pose_net(tgt_img, ref_img)) #ref_t_tgt
         poses_inv.append(pose_net(ref_img, tgt_img))
+
+    if args is not None:
+        if args.pose_inconsistency:
+            ref1_t_ref2 = get_poses_inconsistency(poses).to(device)
+            ref1_t_ref2_vec = pose_net(ref_imgs[1], ref_imgs[0])
+
+            batch = poses[0].shape[0]
+            tensor = torch.tensor([[0, 0, 0, 1]])
+            batch_tensor = tensor.unsqueeze(0)
+            repeated_tensor = batch_tensor.repeat(batch, 1, 1).to(device)
+            
+            # ref1_t_ref2_mat = pose_vec2mat(ref1_t_ref2_vec)
+            ref1_t_ref2_mat = torch.cat((pose_vec2mat(ref1_t_ref2_vec),repeated_tensor),1).to(device)
+            inconsistency = torch.square(ref1_t_ref2 -ref1_t_ref2_mat).sum()
+            # print(inconsistency)
+            return poses, poses_inv, inconsistency
 
     return poses, poses_inv
 
@@ -1519,6 +1601,83 @@ from imageio.v2 import imread
 
 def load_as_float(path):
     return imread(path).astype(np.float32)
+
+
+
+###### Kornia
+
+# PS = 41
+
+# sift = kornia.feature.SIFTDescriptor(PS, rootsift=True).to(device)
+# descriptor = sift
+
+# resp = BlobHessian()
+# scale_pyr = kornia.geometry.ScalePyramid(3, 1.6, PS, double_image=True)
+
+# nms = kornia.geometry.ConvQuadInterp3d(10)
+
+# n_features = 4000
+# detector = ScaleSpaceDetector(n_features,
+#                               resp_module=resp,
+#                               nms_module=nms,
+#                               scale_pyr_module=scale_pyr,
+#                               ori_module=kornia.feature.LAFOrienter(19),
+#                               aff_module=kornia.feature.LAFAffineShapeEstimator(19),
+#                               mr_size=6.0).to(device)
+
+# @torch.no_grad()
+# def get_pose(src_img, dst_img, cam):
+    
+#     timg = torch.cat([src_img,dst_img], dim=0)
+#     # print('cat shape',timg.shape)
+#     timg_gray = kornia.color.rgb_to_grayscale(timg)
+
+#     global detector, PS, device
+#     lafs, resps = detector(timg_gray)
+#     patches =  kornia.feature.extract_patches_from_pyramid(timg_gray, lafs, PS)
+#     B, N, CH, H, W = patches.size()
+#     # print(patches.size(),'patch')
+#     descs = descriptor(patches.view(B * N, CH, H, W)).view(B, N, -1)
+#     # print('desc', descs.shape)
+#     # src_pts = None
+#     # dst_pts = None
+#     Rs = None 
+#     Ts = None
+
+#     cam = cam[0].unsqueeze(0)
+#     for i in range(int(B/2)):
+#         # print(i)
+#         scores, matches = kornia.feature.match_snn(descs[i], descs[i+int(B/2)], 0.9)
+    
+#         src_pts = lafs[0,matches[:,0], :, 2].data.unsqueeze(0)
+#         dst_pts = lafs[1,matches[:,1], :, 2].data.unsqueeze(0)
+#         # if src_pts is None:
+#         #     src_pts = src_pt
+#         #     dst_pts = dst_pt
+#         # else:
+#         #     src_pts = torch.cat([src_pts,src_pt], dim=0)
+#         #     dst_pts = torch.cat([dst_pts,dst_pt], dim=0)
+
+
+#     # print('src pts',src_pts.shape)
+#     # print('dst pts',dst_pts.shape)
+#         F = kornia.geometry.epipolar.find_fundamental(src_pts, dst_pts).type(torch.DoubleTensor)
+#         E = kornia.geometry.epipolar.essential_from_fundamental(F.type(torch.DoubleTensor), cam.type(torch.DoubleTensor), cam.type(torch.DoubleTensor))
+#         # print(E.shape)
+#         # print(cam.shape)
+#         R,T,N = kornia.geometry.epipolar.motion_from_essential_choose_solution(E.type(torch.float32).to(device), cam.type(torch.float32).to(device), cam.type(torch.float32).to(device), src_pts.type(torch.float32).to(device), dst_pts.type(torch.float32).to(device))
+
+#         R = torch.from_numpy(Rot.from_matrix(R.cpu().detach().numpy()).as_euler('xyz', degrees=False)).to(device)
+
+#         if Rs is None:
+#             Rs = R
+#             Ts = T
+#         else:
+#             Rs = torch.cat([Rs, R], dim=0)
+#             Ts = torch.cat([Ts, T], dim=0)
+    
+#     return torch.cat([Rs, Ts.squeeze(2)], dim=1)
+#     # return Rs, Ts
 
 
 if __name__=='__main__':

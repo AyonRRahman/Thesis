@@ -26,12 +26,11 @@ parser = argparse.ArgumentParser(description='Script for getting odometry',
                                  formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--pretrained_dir", required=True, type=str, help="path containing pretrained PoseNet")
 
-
 parser.add_argument("--dataset-dir", type=str, help="Dataset directory")
-parser.add_argument("--output-dir", default='pose_evaluation', type=str, help="Output directory for saving predictions in a big 3D numpy file")
+parser.add_argument("--dataset", default='eiffel',type=str, help='name of the dataset.')
+parser.add_argument("--output-dir", default='pose_evaluation_final', type=str, help="Output directory for saving predictions in a big 3D numpy file")
 parser.add_argument("--img-exts", default=['png'], nargs='*', type=str, help="images extensions to glob")
 parser.add_argument("--rotation-mode", default='euler', choices=['euler', 'quat'], type=str)
-
 parser.add_argument("--sequence", default='2015', type=str, help="sequence to test")
 parser.add_argument("--use_best", action='store_true', help='use best model instead of last checkpoint.')
 parser.add_argument("--name", type=str, help="folder to save the output in output-dir")
@@ -94,18 +93,10 @@ def main():
 
         pose_mat = pose_vec2mat(pose).squeeze(0).cpu().numpy()
         pose_mat = np.vstack([pose_mat, np.array([0, 0, 0, 1])])
-        # print(pose_mat[3,0:3])
-        # print(pose_mat[0:3, 0:3].T)
-        # inverse_of_pose = np.vstack([np.hstack([pose_mat[0:3, 0:3].T, -(pose_mat[0:3, 0:3]@(pose_mat[3,0:3].reshape(3,1))) ]), np.array([0, 0, 0, 1])])
-
-        # print(inverse_of_pose - np.linalg.inv(pose_mat))
-
-        # global_pose = global_pose @ inverse_of_pose
         
+    
         global_pose = global_pose @  np.linalg.inv(pose_mat)
-
         poses.append(global_pose[0:3, :].reshape(1, 12))
-
         # update
         tensor_img1 = tensor_img2
 
@@ -119,7 +110,11 @@ def main():
 
     #calculating the ATE using umeyama alignment
     predicted_pose_file = filename
-    gt_pose_file = f"data/Eiffel-Tower/{args.sequence}/gt_traj.txt"
+    if args.dataset=='varos':
+        gt_pose_file = f"/home/mundus/mrahman527/Thesis/data/Varos_ready/varos_pose_kitti_format.txt"
+    
+    else:
+        gt_pose_file = f"data/Eiffel-Tower/{args.sequence}/gt_traj.txt"
 
     transformed_pred, ult_gt = align_trajectory(predicted_pose_file, gt_pose_file)
 

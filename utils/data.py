@@ -299,12 +299,39 @@ def generate_mask_from_depth(dir='data/scaled_and_cropped_depth', output_dir = '
             Image.fromarray(mask).save(save_name)
             
         
-
         
-        
+def prepare_sea_thru_nerf_dataset(dataset_dir: Path, tgt_dir: Path) -> None:
+    '''
+    crop the images from top bottom and right to make the sizes multiple of 64 for the models to work and
+    save the images in the tgt dir
+    '''
+    assert isinstance(dataset_dir, Path), "give a Path instance"
+    
+    tgt_dir = Path(tgt_dir)
+    tgt_dir.makedirs_p()
+    folders = dataset_dir.glob("*")
+    folders.remove(dataset_dir/"README.txt")
+    
+    for folder in folders:
+        folder_name = folder.split('/')[-1]
+        image_folder = folder/'images_wb'
+        image_list = image_folder.glob("*.png")
+        (tgt_dir/folder_name).makedirs_p()
 
+        for image in tqdm(image_list):
+            
+            img_name = image.split('/')[-1]
+            
+            img = cv2.imread(image)
+            ht, wd , _ = img.shape
 
-        
+            ht_to_crop = ht - ht%64
+            wd_to_crop = wd - wd%64
+            cropped_img = img[:ht_to_crop, :wd_to_crop, :]
+            
+            save_file_name = tgt_dir/folder_name/img_name
+            cv2.imwrite(save_file_name, cropped_img)     
+            
 
 
 

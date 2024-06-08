@@ -39,5 +39,7 @@ data/Eiffel_tower_ready_small_set/*
 /train_only_depth/saved_models_experiment/*
 /Image_enhancement_result/*
 /Image_enhancement_result_old/*
+/Image_enhancement_result*
 /*.csv
 *.png
+*.txt

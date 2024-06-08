@@ -13,6 +13,7 @@ import cv2
 from datetime import datetime
 
 from skimage import exposure
+from skimage.restoration import denoise_bilateral, denoise_tv_chambolle, estimate_sigma
 
 #models
 from models.SFM.DispNetS import DispNetS
@@ -24,6 +25,8 @@ from csv import DictWriter
 
 #sea_through
 from train_only_depth.seathru import run_pipeline
+
+
 #evaluate
 from evaluate_image_recovery import rmetrics, nmetrics
 
@@ -38,6 +41,7 @@ parser.add_argument("--RMI", action='store_true', help="Will use RMI input space
 parser.add_argument("--rescale_img", action="store_true", help='rescale images and depths to half the size')
 parser.add_argument("--save_freq", default=0, type=int, help="save every this amount recovered image")
 parser.add_argument("--name", required=True, help="name of the folder to be saved everything")
+parser.add_argument("--use_gt_depth", action="store_true", help="use the ground truth depth for enhance image")
 ######################################################
 class Args(argparse.Namespace):
     f = 2.0
@@ -92,6 +96,7 @@ def main(args):
     elif args.depth_model == 'dptb':
         model = DepthAnythingSFM(encoder='vitb')
     elif args.depth_model=='udepth':
+        
         model = UDepth_SFM(load_pretrained=True, rmi=args.RMI)
     
     model.to(device)
@@ -114,7 +119,7 @@ def main(args):
         model.eval()
         print('No saved model given. Running with initialized parameters')
     
-    save_path = "Image_enhancement_result"/Path(args.name)
+    save_path = "Image_enhancement_result_all_image"/Path(args.name)
     if os.path.exists(save_path):
         save_path = save_path+str(datetime.now())
     save_path.makedirs_p()
@@ -130,20 +135,24 @@ def main(args):
     for i,(image, depth) in tqdm(enumerate(zip(image_list, depth_list))):
         
         img = load_tensor_image(image).to(device)        
-        # gt_depth = load_gt_depth(depth)
+        gt_depth = load_gt_depth(depth)
         
         if args.rescale_img:
             img = torch.nn.functional.upsample(img, scale_factor=0.75, mode='bilinear')
-            # gt_depth = torch.nn.functional.upsample(torch.from_numpy(gt_depth).unsqueeze(0).unsqueeze(0), scale_factor=0.5, mode='nearest').squeeze().numpy()
+            gt_depth = torch.nn.functional.upsample(torch.from_numpy(gt_depth).unsqueeze(0).unsqueeze(0), scale_factor=0.75, mode='nearest').squeeze().numpy()
 
-        if args.depth_model == 'dispnet':
-            pred_depth = model(img).cpu().squeeze().detach().numpy()
-            pred_depth = 1/pred_depth
+        if not args.use_gt_depth:
+            if args.depth_model == 'dispnet':
+                pred_depth = model(img).cpu().squeeze().detach().numpy()
+                pred_depth = 1/pred_depth
 
+            else:
+            
+                pred_depth = model(img)[0].cpu().squeeze().detach().numpy()
+                pred_depth = pred_depth
         else:
-            pred_depth = model(img)[0].cpu().squeeze().detach().numpy()
-            pred_depth = pred_depth
-        
+            pred_depth=gt_depth
+    
         # print(img.shape)
         img = img.detach().cpu().numpy().squeeze()
         img = np.moveaxis(img, 0, -1)
@@ -153,10 +162,15 @@ def main(args):
             depths = ((depths - np.min(depths)) / (
                 np.max(depths) - np.min(depths))).astype(np.float32)
             # depths = depths + 0.01
-            mask = (depths>=0.4).astype(int)
+            mask = (depths<=0.4).astype(int)
             depths = mask*depths
             recovered = run_pipeline(img, depths, sea_thru_args)
-
+            sigma_est = estimate_sigma(recovered, channel_axis=-1,average_sigmas=True) / 10.0
+            recovered = denoise_tv_chambolle(recovered, sigma_est, channel_axis=-1)
+            img_mask = np.stack([mask, mask, mask], axis=2)
+            # print(img_mask.shape)
+            
+            recovered = img_mask*recovered + (1-img_mask)*img
 
         except Exception as e:
             print('-------')
@@ -213,6 +227,13 @@ def main(args):
     return psnr_tot/(N), ssim_tot/(N), uiqm_tot/(N), uciqe_tot/(N)
 
         
+@torch.no_grad
+def get_mask_from_attn(range_attn_maps, threshold=0.8):
+    # print(range_attn_maps.shape)
+    attn = range_attn_maps.sum(1).detach()
+    attn = (attn-attn.min())/(attn.max()-attn.min())
+    # print(attn.shape)
+    return attn>threshold
 
 if __name__=='__main__':
     args = parser.parse_args()
