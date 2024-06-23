@@ -1,9 +1,9 @@
 #!/bin/bash
 
 #SBATCH --time=7-00:00:00 --partition=all
-#SBATCH --job-name=eval_seaThru_varos
-#SBATCH --output=eval_seaThru_varos.out
-#SBATCH --error=eval_seaThru_varos.err
+#SBATCH --job-name=eval_seaThru_varos_save_all
+#SBATCH --output=eval_seaThru_varos_save_all.out
+#SBATCH --error=eval_seaThru_varos_save_all.err
 
 
 which python
@@ -12,9 +12,9 @@ echo $HOSTNAME
 nvidia-smi 
 echo $HOSTNAME
 
-# python evaluate_seaThru_correction.py --depth_model udepth --save_freq 1 --name eiffel_gt_depth --use_gt_depth
+# python evaluate_seaThru_correction.py --depth_model udepth --save_freq 1000 --name eiffel_gt_depth --use_gt_depth
 
-python evaluate_seaThru_correction.py --depth_model udepth --save_freq 1 --name varos_gt_depth --use_gt_depth \
+python evaluate_seaThru_correction.py --depth_model udepth --save_freq 10 --name varos_gt_depth --use_gt_depth \
 --img_dir /home/mundus/mrahman527/Varos/2021-08-17_SEQ1/vehicle0/cam0/A \
 --gt_depth /home/mundus/mrahman527/Thesis/data/Varos_ready/depth/seq01 --rescale_img
 

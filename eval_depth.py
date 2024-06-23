@@ -241,7 +241,7 @@ def main(args):
     
     print(f'abs_rel: {abs_rel}')
     print(f'total skipped {skipped}')
-    return args.depth_model ,args.RMI, epoch, args.max_depth, abs_rel_tot/(len(image_list)-skipped), sq_rel_tot/(len(image_list)-skipped), log10_tot/(len(image_list)-skipped), rmse_tot/(len(image_list)-skipped), rmse_log_tot/(len(image_list)-skipped), a1_tot/(len(image_list)-skipped), a2_tot/(len(image_list)-skipped), a3_tot/(len(image_list)-skipped)
+    return args.depth_model ,args.RMI, 0, args.max_depth, abs_rel_tot/(len(image_list)-skipped), sq_rel_tot/(len(image_list)-skipped), log10_tot/(len(image_list)-skipped), rmse_tot/(len(image_list)-skipped), rmse_log_tot/(len(image_list)-skipped), a1_tot/(len(image_list)-skipped), a2_tot/(len(image_list)-skipped), a3_tot/(len(image_list)-skipped)
 
 if __name__=='__main__':
     from csv import writer

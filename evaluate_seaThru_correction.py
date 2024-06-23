@@ -75,7 +75,7 @@ def main(args):
     image_dir = Path(args.img_dir)
     depth_dir = Path(args.gt_depth)
     assert os.path.exists(image_dir) and os.path.exists(depth_dir), 'image or depth directory invalid'
-    image_list = (image_dir.glob('*.png'))
+    image_list = sorted(image_dir.glob('*.png'))
     depth_list = sorted(depth_dir.glob('*.png'))
 
     # assert len(image_list)==len(depth_list)
@@ -133,7 +133,8 @@ def main(args):
     field_names = ['image', 'psnr', 'ssim', 'uiqm','uiqm_or', 'uciqe', 'uciqe_or']
 
     for i,(image, depth) in tqdm(enumerate(zip(image_list, depth_list))):
-        
+        print(image)
+        print(depth)
         img = load_tensor_image(image).to(device)        
         gt_depth = load_gt_depth(depth)
         
